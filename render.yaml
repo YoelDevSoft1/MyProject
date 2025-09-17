@@ -4,7 +4,7 @@ services:
     name: smd-vital-backend
     env: python
     plan: free
-    buildCommand: pip install -r requirements-minimal.txt
+    buildCommand: pip install -r requirements-basic.txt
     startCommand: python main-simple.py
     envVars:
       - key: DATABASE_URL
@@ -28,7 +28,7 @@ services:
   - type: web
     name: smd-vital-frontend
     env: static
-    buildCommand: chmod +x build-frontend-simple.sh && ./build-frontend-simple.sh
+    buildCommand: chmod +x build-frontend-ultra-simple.sh && ./build-frontend-ultra-simple.sh
     staticPublishPath: horizon-ui-chakra-main/build
     envVars:
       - key: REACT_APP_API_URL

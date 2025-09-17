@@ -1,5 +1,5 @@
-# SMD Vital Backend - Minimal Requirements for RENDER
-# ===================================================
+# SMD Vital Backend - No Cryptography Requirements for RENDER
+# ===========================================================
 
 # Core Framework
 fastapi==0.104.1
@@ -8,11 +8,10 @@ pydantic==2.5.0
 
 # Database
 sqlalchemy==2.0.23
-asyncpg==0.29.0
 psycopg2-binary==2.9.9
 
-# Authentication
-python-jose[cryptography]==3.3.0
+# Authentication (without cryptography)
+python-jose==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 bcrypt==4.1.2
@@ -23,9 +22,6 @@ httpx==0.25.2
 # Environment
 python-dotenv==1.0.0
 
-# Date & Time
-python-dateutil==2.8.2
-
 # Validation
 email-validator==2.1.0
 
@@ -35,17 +31,11 @@ pyjwt==2.8.0
 # Utilities
 python-slugify==8.0.1
 
-# Performance
-orjson==3.9.10
-
 # File handling
 aiofiles==23.2.1
 
 # SSL
 certifi==2023.11.17
-
-# Cryptography
-cryptography>=41.0.0
 
 # Configuration
 python-decouple==3.8
@@ -71,6 +61,3 @@ chevron==0.14.0
 # HTML processing
 beautifulsoup4==4.12.2
 lxml==4.9.3
-
-# Development
-ipython==8.17.2
