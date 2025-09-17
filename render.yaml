@@ -4,7 +4,7 @@ services:
     name: smd-vital-backend
     env: python
     plan: free
-    buildCommand: pip install -r requirements-basic.txt
+    buildCommand: pip install -r requirements-ultra-simple.txt
     startCommand: python main-simple.py
     envVars:
       - key: DATABASE_URL
@@ -28,15 +28,11 @@ services:
   - type: web
     name: smd-vital-frontend
     env: static
-    buildCommand: chmod +x build-frontend-ultra-simple.sh && ./build-frontend-ultra-simple.sh
+    buildCommand: echo "Using pre-built static files"
     staticPublishPath: horizon-ui-chakra-main/build
     envVars:
       - key: REACT_APP_API_URL
         value: https://smd-vital-backend.onrender.com
-      - key: GENERATE_SOURCEMAP
-        value: "false"
-      - key: DISABLE_ESLINT_PLUGIN
-        value: "true"
 
 databases:
   - name: smd-vital-db

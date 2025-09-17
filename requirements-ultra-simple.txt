@@ -1,0 +1,59 @@
+# SMD Vital Backend - Ultra Simple Requirements for RENDER
+# =======================================================
+
+# Core Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Database
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+
+# Authentication (basic)
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+bcrypt==4.1.2
+
+# HTTP Client
+httpx==0.25.2
+
+# Environment
+python-dotenv==1.0.0
+
+# Validation
+email-validator==2.1.0
+
+# JWT
+pyjwt==2.8.0
+
+# Utilities
+python-slugify==8.0.1
+
+# File handling
+aiofiles==23.2.1
+
+# SSL
+certifi==2023.11.17
+
+# Configuration
+python-decouple==3.8
+
+# Session
+itsdangerous==2.1.2
+
+# Async
+async-timeout==4.0.3
+
+# URL parsing
+yarl==1.9.4
+
+# Data validation
+pydantic-extra-types==2.2.0
+
+# Templates
+chevron==0.14.0
+
+# HTML processing
+beautifulsoup4==4.12.2
+lxml==4.9.3
