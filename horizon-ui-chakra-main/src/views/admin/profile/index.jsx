@@ -243,14 +243,22 @@ export default function ProfileSettings() {
   }
 
   return (
-    <Box p={6}>
-      <VStack spacing={8} align="stretch">
+    <Box p={{ base: 4, md: 6 }}>
+      <VStack spacing={{ base: 6, md: 8 }} align="stretch">
         {/* Header */}
-        <Box>
-          <Text fontSize="2xl" fontWeight="bold" color={textColor} mb={2}>
+        <Box textAlign={{ base: "center", md: "left" }}>
+          <Text 
+            fontSize={{ base: "xl", md: "2xl" }} 
+            fontWeight="bold" 
+            color={textColor} 
+            mb={2}
+          >
             Configuración de Perfil
           </Text>
-          <Text color={textColorSecondary}>
+          <Text 
+            color={textColorSecondary}
+            fontSize={{ base: "sm", md: "md" }}
+          >
             Gestiona tu información personal y preferencias de notificación
           </Text>
         </Box>
@@ -258,20 +266,38 @@ export default function ProfileSettings() {
         {/* Información del Usuario Actual */}
         <Card bg={cardBg} border="1px" borderColor={borderColor}>
           <CardHeader>
-            <HStack spacing={4}>
+            <HStack 
+              spacing={{ base: 3, md: 4 }}
+              direction={{ base: "column", sm: "row" }}
+              align={{ base: "center", sm: "start" }}
+            >
               <Avatar 
-                size="lg" 
+                size={{ base: "md", md: "lg" }}
                 name={profile?.name || 'Usuario'} 
                 src={profile?.profile_picture || profile?.avatar}
               />
-              <VStack align="start" spacing={1}>
-                <Text fontSize="lg" fontWeight="semibold" color={textColor}>
+              <VStack 
+                align={{ base: "center", sm: "start" }} 
+                spacing={1}
+                textAlign={{ base: "center", sm: "left" }}
+              >
+                <Text 
+                  fontSize={{ base: "md", md: "lg" }} 
+                  fontWeight="semibold" 
+                  color={textColor}
+                >
                   {profile?.name || 'Usuario'}
                 </Text>
-                <Text fontSize="sm" color={textColorSecondary}>
+                <Text 
+                  fontSize={{ base: "xs", md: "sm" }} 
+                  color={textColorSecondary}
+                >
                   {profile?.email || 'No disponible'}
                 </Text>
-                <Badge colorScheme={getRoleColor(profile?.role)} size="sm">
+                <Badge 
+                  colorScheme={getRoleColor(profile?.role)} 
+                  size={{ base: "sm", md: "md" }}
+                >
                   {getRoleLabel(profile?.role)}
                 </Badge>
               </VStack>
@@ -279,73 +305,103 @@ export default function ProfileSettings() {
           </CardHeader>
         </Card>
 
-        <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={8}>
+        <SimpleGrid 
+          columns={{ base: 1, lg: 2 }} 
+          spacing={{ base: 6, md: 8 }}
+        >
           {/* Información Personal */}
           <Card bg={cardBg} border="1px" borderColor={borderColor}>
             <CardHeader>
               <HStack>
                 <Icon as={EditIcon} color="brand.500" />
-                <Text fontSize="lg" fontWeight="semibold" color={textColor}>
+                <Text 
+                  fontSize={{ base: "md", md: "lg" }} 
+                  fontWeight="semibold" 
+                  color={textColor}
+                >
                   Información Personal
                 </Text>
               </HStack>
             </CardHeader>
             <CardBody>
-              <VStack spacing={4}>
+              <VStack spacing={{ base: 3, md: 4 }}>
                 <FormControl>
-                  <FormLabel>Nombre completo</FormLabel>
+                  <FormLabel fontSize={{ base: "sm", md: "md" }}>
+                    Nombre completo
+                  </FormLabel>
                   <Input
                     value={profileForm.name}
                     onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                     placeholder="Tu nombre completo"
+                    size={{ base: "sm", md: "md" }}
                   />
                 </FormControl>
                 
-                <HStack spacing={4} w="100%">
+                <HStack 
+                  spacing={{ base: 2, md: 4 }} 
+                  w="100%"
+                  direction={{ base: "column", sm: "row" }}
+                  align={{ base: "stretch", sm: "start" }}
+                >
                   <FormControl>
-                    <FormLabel>Primer nombre</FormLabel>
+                    <FormLabel fontSize={{ base: "sm", md: "md" }}>
+                      Primer nombre
+                    </FormLabel>
                     <Input
                       value={profileForm.first_name}
                       onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
                       placeholder="Primer nombre"
+                      size={{ base: "sm", md: "md" }}
                     />
                   </FormControl>
                   
                   <FormControl>
-                    <FormLabel>Apellido</FormLabel>
+                    <FormLabel fontSize={{ base: "sm", md: "md" }}>
+                      Apellido
+                    </FormLabel>
                     <Input
                       value={profileForm.last_name}
                       onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
                       placeholder="Apellido"
+                      size={{ base: "sm", md: "md" }}
                     />
                   </FormControl>
                 </HStack>
                 
                 <FormControl>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel fontSize={{ base: "sm", md: "md" }}>
+                    Email
+                  </FormLabel>
                   <Input
                     value={profileForm.email}
                     onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                     placeholder="tu@email.com"
                     type="email"
+                    size={{ base: "sm", md: "md" }}
                   />
                 </FormControl>
                 
                 <FormControl>
-                  <FormLabel>Teléfono</FormLabel>
+                  <FormLabel fontSize={{ base: "sm", md: "md" }}>
+                    Teléfono
+                  </FormLabel>
                   <Input
                     value={profileForm.phone}
                     onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                     placeholder="+57 300 123 4567"
+                    size={{ base: "sm", md: "md" }}
                   />
                 </FormControl>
                 
                 <FormControl>
-                  <FormLabel>Especialidad</FormLabel>
+                  <FormLabel fontSize={{ base: "sm", md: "md" }}>
+                    Especialidad
+                  </FormLabel>
                   <Select
                     value={profileForm.specialty}
                     onChange={(e) => setProfileForm({ ...profileForm, specialty: e.target.value })}
                     placeholder="Selecciona tu especialidad"
+                    size={{ base: "sm", md: "md" }}
                   >
                     <option value="Medicina General">Medicina General</option>
                     <option value="Cardiología">Cardiología</option>
@@ -357,12 +413,15 @@ export default function ProfileSettings() {
                 </FormControl>
                 
                 <FormControl>
-                  <FormLabel>Biografía</FormLabel>
+                  <FormLabel fontSize={{ base: "sm", md: "md" }}>
+                    Biografía
+                  </FormLabel>
                   <Textarea
                     value={profileForm.bio}
                     onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
                     placeholder="Cuéntanos sobre ti..."
-                    rows={3}
+                    rows={{ base: 2, md: 3 }}
+                    size={{ base: "sm", md: "md" }}
                   />
                 </FormControl>
                 
@@ -373,6 +432,7 @@ export default function ProfileSettings() {
                   loadingText="Guardando..."
                   leftIcon={<CheckCircleIcon />}
                   w="100%"
+                  size={{ base: "sm", md: "md" }}
                 >
                   Guardar Cambios
                 </Button>
@@ -385,43 +445,83 @@ export default function ProfileSettings() {
             <CardHeader>
               <HStack>
                 <Icon as={SettingsIcon} color="brand.500" />
-                <Text fontSize="lg" fontWeight="semibold" color={textColor}>
+                <Text 
+                  fontSize={{ base: "md", md: "lg" }} 
+                  fontWeight="semibold" 
+                  color={textColor}
+                >
                   Notificaciones
                 </Text>
               </HStack>
             </CardHeader>
             <CardBody>
-              <VStack spacing={4}>
-                <FormControl display="flex" alignItems="center" justifyContent="space-between">
-                  <FormLabel mb="0">Notificaciones por email</FormLabel>
+              <VStack spacing={{ base: 3, md: 4 }}>
+                <FormControl 
+                  display="flex" 
+                  alignItems="center" 
+                  justifyContent="space-between"
+                  direction={{ base: "column", sm: "row" }}
+                  gap={2}
+                >
+                  <FormLabel 
+                    mb="0"
+                    fontSize={{ base: "sm", md: "md" }}
+                  >
+                    Notificaciones por email
+                  </FormLabel>
                   <Switch
                     isChecked={notificationSettings.email_notifications}
                     onChange={(e) => setNotificationSettings({
                       ...notificationSettings,
                       email_notifications: e.target.checked
                     })}
+                    size={{ base: "sm", md: "md" }}
                   />
                 </FormControl>
                 
-                <FormControl display="flex" alignItems="center" justifyContent="space-between">
-                  <FormLabel mb="0">Notificaciones por SMS</FormLabel>
+                <FormControl 
+                  display="flex" 
+                  alignItems="center" 
+                  justifyContent="space-between"
+                  direction={{ base: "column", sm: "row" }}
+                  gap={2}
+                >
+                  <FormLabel 
+                    mb="0"
+                    fontSize={{ base: "sm", md: "md" }}
+                  >
+                    Notificaciones por SMS
+                  </FormLabel>
                   <Switch
                     isChecked={notificationSettings.sms_notifications}
                     onChange={(e) => setNotificationSettings({
                       ...notificationSettings,
                       sms_notifications: e.target.checked
                     })}
+                    size={{ base: "sm", md: "md" }}
                   />
                 </FormControl>
                 
-                <FormControl display="flex" alignItems="center" justifyContent="space-between">
-                  <FormLabel mb="0">Notificaciones push</FormLabel>
+                <FormControl 
+                  display="flex" 
+                  alignItems="center" 
+                  justifyContent="space-between"
+                  direction={{ base: "column", sm: "row" }}
+                  gap={2}
+                >
+                  <FormLabel 
+                    mb="0"
+                    fontSize={{ base: "sm", md: "md" }}
+                  >
+                    Notificaciones push
+                  </FormLabel>
                   <Switch
                     isChecked={notificationSettings.push_notifications}
                     onChange={(e) => setNotificationSettings({
                       ...notificationSettings,
                       push_notifications: e.target.checked
                     })}
+                    size={{ base: "sm", md: "md" }}
                   />
                 </FormControl>
                 
@@ -434,6 +534,7 @@ export default function ProfileSettings() {
                   loadingText="Guardando..."
                   leftIcon={<SettingsIcon />}
                   w="100%"
+                  size={{ base: "sm", md: "md" }}
                 >
                   Guardar Configuración
                 </Button>

@@ -427,28 +427,37 @@ export default function Notifications() {
                 direction={{ base: "column", sm: "row" }}
                 align={{ base: "stretch", sm: "center" }}
                 spacing={2}
+                wrap="wrap"
               >
-                <HStack spacing={{ base: "10px", md: "15px" }}>
+                <HStack 
+                  spacing={{ base: "10px", md: "15px" }} 
+                  flex="1" 
+                  minW="0"
+                  maxW={{ base: "100%", sm: "calc(100% - 120px)", md: "calc(100% - 150px)" }}
+                >
                   <Icon
                     as={getTypeIcon(notification.type)}
                     w={{ base: "20px", md: "24px" }}
                     h={{ base: "20px", md: "24px" }}
                     color={`${getTypeColor(notification.type)}.500`}
+                    flexShrink={0}
                   />
-                  <VStack align="start" spacing="2px" flex="1">
+                  <VStack align="start" spacing="2px" flex="1" minW="0">
                     <Text 
                       fontWeight={notification.status === "unread" ? "700" : "600"} 
                       color={textColor}
                       fontSize={{ base: "sm", md: "md" }}
                       isTruncated
-                      maxW="300px"
+                      maxW="100%"
                     >
                       {notification.title}
                     </Text>
                     <Text 
                       fontSize={{ base: "xs", md: "sm" }} 
                       color={textColorSecondary}
-                      noOfLines={2}
+                      noOfLines={{ base: 1, sm: 2 }}
+                      isTruncated
+                      maxW="100%"
                     >
                       {notification.message}
                     </Text>
@@ -458,6 +467,7 @@ export default function Notifications() {
                   spacing={{ base: "5px", md: "10px" }}
                   justify={{ base: "center", sm: "flex-end" }}
                   wrap="wrap"
+                  flexShrink={0}
                 >
                   <Badge 
                     colorScheme={getPriorityColor(notification.priority)} 
@@ -481,18 +491,25 @@ export default function Notifications() {
                 direction={{ base: "column", sm: "row" }}
                 align={{ base: "stretch", sm: "center" }}
                 spacing={2}
+                wrap="wrap"
               >
                 <Text 
                   fontSize={{ base: "xs", md: "sm" }} 
                   color={textColorSecondary}
                   textAlign={{ base: "center", sm: "left" }}
+                  isTruncated
+                  maxW={{ base: "100%", sm: "calc(100% - 200px)", md: "calc(100% - 250px)" }}
+                  flex="1"
+                  minW="0"
                 >
                   {notification.timestamp} • {notification.sender}
                 </Text>
                 <HStack 
-                  spacing={{ base: "3px", md: "5px" }}
+                  spacing={{ base: "2px", md: "3px" }}
                   justify={{ base: "center", sm: "flex-end" }}
                   wrap="wrap"
+                  maxW={{ base: "100%", sm: "200px", md: "250px" }}
+                  flexShrink={0}
                 >
                   <Button
                     size={{ base: "xs", md: "sm" }}
@@ -502,6 +519,8 @@ export default function Notifications() {
                       e.stopPropagation();
                       handleViewNotification(notification);
                     }}
+                    minW="auto"
+                    px={{ base: 2, md: 3 }}
                   >
                     <Text display={{ base: "none", sm: "block" }}>Ver</Text>
                   </Button>
@@ -515,8 +534,10 @@ export default function Notifications() {
                         e.stopPropagation();
                         markAsRead(notification.id);
                       }}
+                      minW="auto"
+                      px={{ base: 2, md: 3 }}
                     >
-                      <Text display={{ base: "none", sm: "block" }}>Marcar Leída</Text>
+                      <Text display={{ base: "none", sm: "block" }}>Leída</Text>
                     </Button>
                   ) : (
                     <Button
@@ -528,8 +549,10 @@ export default function Notifications() {
                         e.stopPropagation();
                         markAsUnread(notification.id);
                       }}
+                      minW="auto"
+                      px={{ base: 2, md: 3 }}
                     >
-                      <Text display={{ base: "none", sm: "block" }}>Marcar No Leída</Text>
+                      <Text display={{ base: "none", sm: "block" }}>No Leída</Text>
                     </Button>
                   )}
                   <Button
@@ -541,6 +564,8 @@ export default function Notifications() {
                       e.stopPropagation();
                       deleteNotification(notification.id);
                     }}
+                    minW="auto"
+                    px={{ base: 2, md: 3 }}
                   >
                     <Text display={{ base: "none", sm: "block" }}>Eliminar</Text>
                   </Button>

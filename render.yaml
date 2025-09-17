@@ -4,7 +4,7 @@ services:
     name: smd-vital-backend
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements-render.txt
     startCommand: python -m uvicorn services.auth.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
@@ -15,12 +15,14 @@ services:
         value: /opt/render/project/src
       - key: ENVIRONMENT
         value: production
+      - key: CORS_ORIGINS
+        value: https://smd-vital-frontend.onrender.com
 
   # Frontend Service
   - type: web
     name: smd-vital-frontend
     env: static
-    buildCommand: cd horizon-ui-chakra-main && npm install && npm run build
+    buildCommand: cd horizon-ui-chakra-main && chmod +x build.sh && ./build.sh
     staticPublishPath: horizon-ui-chakra-main/build
     envVars:
       - key: REACT_APP_API_URL
