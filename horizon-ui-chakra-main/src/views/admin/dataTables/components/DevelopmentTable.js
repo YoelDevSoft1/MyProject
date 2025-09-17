@@ -168,19 +168,34 @@ export default function ComplexTable(props) {
       px="0px"
       overflowX={{ sm: 'scroll', lg: 'hidden' }}
     >
-      <Flex px="25px" mb="8px" justifyContent="space-between" align="center">
+      <Flex 
+        px={{ base: "15px", md: "25px" }} 
+        mb="8px" 
+        justifyContent="space-between" 
+        align="center"
+        direction={{ base: "column", sm: "row" }}
+        gap={2}
+      >
         <Text
           color={textColor}
-          fontSize="22px"
+          fontSize={{ base: "lg", md: "22px" }}
           fontWeight="700"
           lineHeight="100%"
+          textAlign={{ base: "center", sm: "left" }}
         >
           Tabla de Desarrollo SMD VITAL
         </Text>
         <Menu />
       </Flex>
-      <Box>
-        <Table variant="simple" color="gray.500" mb="24px" mt="12px">
+      <Box overflowX="auto">
+        <Table 
+          variant="simple" 
+          color="gray.500" 
+          mb={{ base: "15px", md: "24px" }} 
+          mt="12px"
+          size={{ base: "sm", md: "md" }}
+          minW="600px"
+        >
           <Thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <Tr key={headerGroup.id}>
@@ -197,7 +212,7 @@ export default function ComplexTable(props) {
                       <Flex
                         justifyContent="space-between"
                         align="center"
-                        fontSize={{ sm: '10px', lg: '12px' }}
+                        fontSize={{ base: "8px", sm: "10px", lg: "12px" }}
                         color="gray.400"
                       >
                         {flexRender(
@@ -226,8 +241,8 @@ export default function ComplexTable(props) {
                       return (
                         <Td
                           key={cell.id}
-                          fontSize={{ sm: '14px' }}
-                          minW={{ sm: '150px', md: '200px', lg: 'auto' }}
+                          fontSize={{ base: "xs", sm: "14px" }}
+                          minW={{ base: "100px", sm: "150px", md: "200px", lg: "auto" }}
                           borderColor="transparent"
                         >
                           {flexRender(

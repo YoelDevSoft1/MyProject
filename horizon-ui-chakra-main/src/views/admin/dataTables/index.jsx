@@ -43,9 +43,10 @@ export default function DataTables() {
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
       <SimpleGrid
-        mb='20px'
-        columns={{ sm: 1, md: 2 }}
-        spacing={{ base: "20px", xl: "20px" }}>
+        mb={{ base: "15px", md: "20px" }}
+        columns={{ base: 1, sm: 1, md: 2 }}
+        spacing={{ base: "15px", md: "20px", xl: "20px" }}
+      >
         <DevelopmentTable
           columnsData={columnsDataDevelopment}
           tableData={tableDataDevelopment}
