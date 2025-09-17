@@ -4,8 +4,8 @@ services:
     name: smd-vital-backend
     env: python
     plan: free
-    buildCommand: pip install -r requirements-simple.txt
-    startCommand: python main.py
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: python main-simple.py
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -28,7 +28,7 @@ services:
   - type: web
     name: smd-vital-frontend
     env: static
-    buildCommand: cd horizon-ui-chakra-main && npm install && npm run build
+    buildCommand: chmod +x build-frontend.sh && ./build-frontend.sh
     staticPublishPath: horizon-ui-chakra-main/build
     envVars:
       - key: REACT_APP_API_URL
