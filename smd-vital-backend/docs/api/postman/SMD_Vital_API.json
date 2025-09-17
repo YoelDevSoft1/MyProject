@@ -1,0 +1,858 @@
+{
+  "info": {
+    "name": "SMD Vital - Microservices API",
+    "description": "Colección completa de endpoints para la plataforma de servicios médicos domiciliarios SMD Vital.\n\n## Servicios Incluidos\n- **Authentication Service** - Autenticación y autorización\n- **Users Service** - Gestión de usuarios y perfiles\n- **Appointments Service** - Citas médicas\n- **Medical Records Service** - Historiales médicos\n- **Payments Service** - Pagos y facturación\n- **Notifications Service** - Notificaciones multi-canal\n\n## Variables de Entorno\nConfigura las siguientes variables:\n- `baseUrl`: http://localhost:8000\n- `authToken`: Token JWT obtenido del login\n- `userId`: ID del usuario autenticado\n- `patientId`: ID de un paciente\n- `appointmentId`: ID de una cita\n\n## Flujo de Autenticación\n1. Ejecutar **Register** o **Login**\n2. Copiar el `access_token` de la respuesta\n3. Configurar la variable `authToken` con el token\n4. ¡Listo para usar todos los endpoints!",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "patientId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "appointmentId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 Authentication Service",
+      "description": "Endpoints para autenticación y autorización de usuarios",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.environment.set('authToken', response.access_token);",
+                  "    pm.environment.set('userId', response.user_id);",
+                  "    pm.test('Registration successful', () => {",
+                  "        pm.expect(response.access_token).to.not.be.empty;",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"juan.perez@example.com\",\n  \"password\": \"MiPassword123!\",\n  \"first_name\": \"Juan\",\n  \"last_name\": \"Pérez\",\n  \"phone\": \"+573001234567\",\n  \"role\": \"patient\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Registrar un nuevo usuario en el sistema"
+          }
+        },
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.environment.set('authToken', response.access_token);",
+                  "    pm.environment.set('userId', response.user_id);",
+                  "    pm.test('Login successful', () => {",
+                  "        pm.expect(response.access_token).to.not.be.empty;",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"juan.perez@example.com\",\n  \"password\": \"MiPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Iniciar sesión y obtener token JWT"
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Obtener información del usuario autenticado"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Renovar token de acceso"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Cerrar sesión e invalidar tokens"
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Users Service",
+      "description": "Endpoints para gestión de usuarios y perfiles",
+      "item": [
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Obtener perfil completo del usuario autenticado"
+          }
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Juan Carlos\",\n  \"last_name\": \"Pérez García\",\n  \"phone\": \"+573001234567\",\n  \"address\": \"Carrera 15 # 93-01, Bogotá\",\n  \"emergency_contact\": \"María Pérez - +573007654321\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Actualizar información del perfil de usuario"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📅 Appointments Service",
+      "description": "Endpoints para gestión de citas médicas",
+      "item": [
+        {
+          "name": "Create Appointment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.environment.set('appointmentId', response.id);",
+                  "    pm.test('Appointment created', () => {",
+                  "        pm.expect(response.id).to.not.be.empty;",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"service_type\": \"consulta_general\",\n  \"scheduled_date\": \"2024-01-15T10:00:00Z\",\n  \"address\": \"Carrera 15 # 93-01, Bogotá\",\n  \"notes\": \"Dolor abdominal persistente\",\n  \"emergency\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments"]
+            },
+            "description": "Crear nueva cita médica"
+          }
+        },
+        {
+          "name": "List Appointments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments?status=pending&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Obtener lista de citas del usuario"
+          }
+        },
+        {
+          "name": "Get Appointment Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments", "{{appointmentId}}"]
+            },
+            "description": "Obtener detalles de una cita específica"
+          }
+        },
+        {
+          "name": "Update Appointment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scheduled_date\": \"2024-01-15T14:00:00Z\",\n  \"notes\": \"Dolor abdominal persistente - Reprogramada\",\n  \"status\": \"confirmed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments", "{{appointmentId}}"]
+            },
+            "description": "Actualizar información de una cita"
+          }
+        },
+        {
+          "name": "Cancel Appointment",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments", "{{appointmentId}}"]
+            },
+            "description": "Cancelar una cita programada"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏥 Medical Records Service",
+      "description": "Endpoints para gestión de historiales médicos",
+      "item": [
+        {
+          "name": "Create Medical Record",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"{{patientId}}\",\n  \"appointment_id\": \"{{appointmentId}}\",\n  \"chief_complaint\": \"Dolor abdominal intenso\",\n  \"present_illness\": \"Paciente refiere dolor abdominal de 2 días de evolución\",\n  \"physical_examination\": \"Abdomen blando, depresible, dolor en epigastrio\",\n  \"assessment\": \"Gastritis aguda probable\",\n  \"plan\": \"Omeprazol 20mg cada 12 horas por 7 días, dieta blanda\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/medical-records",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "medical-records"]
+            },
+            "description": "Crear un nuevo registro médico (solo doctores)"
+          }
+        },
+        {
+          "name": "Get Patient Medical Records",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/medical-records/patient/{{patientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "medical-records", "patient", "{{patientId}}"]
+            },
+            "description": "Obtener todos los registros médicos de un paciente"
+          }
+        },
+        {
+          "name": "Create Prescription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"{{patientId}}\",\n  \"medication_name\": \"Omeprazol\",\n  \"dosage\": \"20mg\",\n  \"frequency\": \"Cada 12 horas\",\n  \"duration\": \"7 días\",\n  \"instructions\": \"Tomar con las comidas, preferiblemente en ayunas\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/prescriptions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "prescriptions"]
+            },
+            "description": "Crear nueva receta médica (solo doctores)"
+          }
+        },
+        {
+          "name": "Get Patient Prescriptions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/prescriptions/patient/{{patientId}}?status=active",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "prescriptions", "patient", "{{patientId}}"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            },
+            "description": "Obtener recetas de un paciente"
+          }
+        },
+        {
+          "name": "Record Vital Signs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"{{patientId}}\",\n  \"appointment_id\": \"{{appointmentId}}\",\n  \"blood_pressure_systolic\": 120,\n  \"blood_pressure_diastolic\": 80,\n  \"heart_rate\": 72,\n  \"temperature\": 36.5,\n  \"respiratory_rate\": 16,\n  \"oxygen_saturation\": 98,\n  \"weight\": 70.5,\n  \"height\": 1.75\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/vital-signs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vital-signs"]
+            },
+            "description": "Registrar signos vitales de un paciente"
+          }
+        },
+        {
+          "name": "Get Patient Vital Signs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/vital-signs/patient/{{patientId}}?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vital-signs", "patient", "{{patientId}}"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Obtener historial de signos vitales"
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 Payments Service",
+      "description": "Endpoints para gestión de pagos y facturación",
+      "item": [
+        {
+          "name": "Process Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"{{patientId}}\",\n  \"appointment_id\": \"{{appointmentId}}\",\n  \"amount\": 150000.00,\n  \"currency\": \"COP\",\n  \"description\": \"Consulta médica domiciliaria\",\n  \"payment_method_id\": \"payment-method-id\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments"]
+            },
+            "description": "Procesar un nuevo pago"
+          }
+        },
+        {
+          "name": "Get Patient Payments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/patient/{{patientId}}?status=completed",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "patient", "{{patientId}}"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "completed"
+                }
+              ]
+            },
+            "description": "Obtener historial de pagos de un paciente"
+          }
+        },
+        {
+          "name": "Create Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"{{patientId}}\",\n  \"appointment_id\": \"{{appointmentId}}\",\n  \"subtotal\": 150000.00,\n  \"tax_amount\": 0,\n  \"total_amount\": 150000.00,\n  \"currency\": \"COP\",\n  \"due_date\": \"2024-01-30\",\n  \"description\": \"Consulta médica domiciliaria\",\n  \"items\": [\n    {\n      \"description\": \"Consulta médica general\",\n      \"quantity\": 1,\n      \"unit_price\": 150000.00,\n      \"total\": 150000.00\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/invoices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "invoices"]
+            },
+            "description": "Crear nueva factura (solo admins y doctores)"
+          }
+        },
+        {
+          "name": "Get Patient Invoices",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/invoices/patient/{{patientId}}?status=pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "invoices", "patient", "{{patientId}}"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
+              ]
+            },
+            "description": "Obtener facturas de un paciente"
+          }
+        },
+        {
+          "name": "Create Payment Method",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{userId}}\",\n  \"type\": \"credit_card\",\n  \"provider\": \"Visa\",\n  \"last_four\": \"4532\",\n  \"expiry_month\": 12,\n  \"expiry_year\": 2026,\n  \"is_default\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payment-methods",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payment-methods"]
+            },
+            "description": "Registrar nuevo método de pago"
+          }
+        },
+        {
+          "name": "Get User Payment Methods",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/payment-methods/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payment-methods", "user", "{{userId}}"]
+            },
+            "description": "Obtener métodos de pago del usuario"
+          }
+        },
+        {
+          "name": "Request Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_id\": \"payment-id\",\n  \"amount\": 150000.00,\n  \"reason\": \"Cancelación del servicio por parte del paciente\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/refunds",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "refunds"]
+            },
+            "description": "Solicitar reembolso de un pago"
+          }
+        },
+        {
+          "name": "Revenue Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/revenue?start_date=2024-01-01&end_date=2024-01-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "revenue"],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2024-01-31"
+                }
+              ]
+            },
+            "description": "Obtener reporte de ingresos (solo administradores)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📧 Notifications Service",
+      "description": "Endpoints para gestión de notificaciones multi-canal",
+      "item": [
+        {
+          "name": "Send Template Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"template_name\": \"appointment_confirmation\",\n  \"user_id\": \"{{userId}}\",\n  \"channels\": [\"email\", \"sms\", \"whatsapp\"],\n  \"template_data\": {\n    \"patient_name\": \"Juan Pérez\",\n    \"appointment_date\": \"15 de Enero, 2024\",\n    \"appointment_time\": \"10:00 AM\",\n    \"doctor_name\": \"Dr. María González\",\n    \"specialty\": \"Medicina General\",\n    \"location\": \"Carrera 15 # 93-01, Bogotá\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/send-template",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "send-template"]
+            },
+            "description": "Enviar notificación usando plantilla predefinida"
+          }
+        },
+        {
+          "name": "Create Custom Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{userId}}\",\n  \"type\": \"general\",\n  \"title\": \"Recordatorio Importante\",\n  \"message\": \"No olvide tomar sus medicamentos según las indicaciones médicas.\",\n  \"channels\": [\"email\", \"push\"],\n  \"priority\": \"normal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"]
+            },
+            "description": "Crear notificación personalizada"
+          }
+        },
+        {
+          "name": "Get User Notifications",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/user/{{userId}}?status=sent&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "user", "{{userId}}"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "sent"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Obtener notificaciones del usuario"
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/mark-read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "{{notificationId}}", "mark-read"]
+            },
+            "description": "Marcar notificación como leída"
+          }
+        },
+        {
+          "name": "Set User Preferences",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{userId}}\",\n  \"email_enabled\": true,\n  \"sms_enabled\": true,\n  \"push_enabled\": true,\n  \"whatsapp_enabled\": false,\n  \"notification_types\": [\n    \"appointment_confirmation\",\n    \"appointment_reminder\",\n    \"prescription_ready\",\n    \"payment_confirmation\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/preferences",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "preferences"]
+            },
+            "description": "Configurar preferencias de notificación"
+          }
+        },
+        {
+          "name": "Get User Preferences",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/preferences/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "preferences", "{{userId}}"]
+            },
+            "description": "Obtener preferencias de notificación del usuario"
+          }
+        },
+        {
+          "name": "Notification Statistics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/stats?start_date=2024-01-01T00:00:00Z&end_date=2024-01-31T23:59:59Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "stats"],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2024-01-01T00:00:00Z"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2024-01-31T23:59:59Z"
+                }
+              ]
+            },
+            "description": "Obtener estadísticas de notificaciones (solo administradores)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔧 Health Checks",
+      "description": "Endpoints para verificar el estado de los servicios",
+      "item": [
+        {
+          "name": "API Gateway Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Health check general del API Gateway"
+          }
+        },
+        {
+          "name": "Auth Service Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "health"]
+            },
+            "description": "Health check del servicio de autenticación"
+          }
+        },
+        {
+          "name": "Users Service Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/users/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "health"]
+            },
+            "description": "Health check del servicio de usuarios"
+          }
+        },
+        {
+          "name": "Appointments Service Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/appointments/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "appointments", "health"]
+            },
+            "description": "Health check del servicio de citas"
+          }
+        },
+        {
+          "name": "Medical Records Service Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/medical-records/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "medical-records", "health"]
+            },
+            "description": "Health check del servicio de registros médicos"
+          }
+        },
+        {
+          "name": "Payments Service Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "health"]
+            },
+            "description": "Health check del servicio de pagos"
+          }
+        },
+        {
+          "name": "Notifications Service Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "health"]
+            },
+            "description": "Health check del servicio de notificaciones"
+          }
+        }
+      ]
+    }
+  ]
+}

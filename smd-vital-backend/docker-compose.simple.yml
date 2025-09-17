@@ -1,0 +1,293 @@
+# SMD Vital Backend - Docker Compose Simplificado
+# ================================================
+# Solo servicios esenciales para desarrollo
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: smd_vital_postgres
+    environment:
+      POSTGRES_DB: smdvital
+      POSTGRES_USER: smdvital
+      POSTGRES_PASSWORD: smdvital_password_2024
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=es_CO.UTF-8 --lc-ctype=es_CO.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - smd_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smdvital -d smdvital"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis Cache & Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: smd_vital_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redis_password_2024
+    volumes:
+      - redis_data:/data
+    networks:
+      - smd_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_password_2024", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: smd_vital_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: smdvital
+      RABBITMQ_DEFAULT_PASS: rabbitmq_password_2024
+      RABBITMQ_DEFAULT_VHOST: smdvital
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - smd_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # API Gateway (Nginx)
+  nginx:
+    image: nginx:alpine
+    container_name: smd_vital_nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - ./infrastructure/nginx/nginx-simple.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth-service
+      - user-service
+      - appointment-service
+    networks:
+      - smd_network
+    restart: unless-stopped
+
+  # Authentication Service
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    container_name: smd_vital_auth
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_auth
+      - REDIS_URL=redis://:redis_password_2024@redis:6379/0
+      - JWT_SECRET_KEY=super_secret_jwt_key_for_smd_vital_2024
+      - ENVIRONMENT=development
+      - DEBUG=true
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/auth:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # User Service
+  user-service:
+    build:
+      context: ./services/users
+      dockerfile: Dockerfile
+    container_name: smd_vital_users
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_users
+      - REDIS_URL=redis://:redis_password_2024@redis:6379/1
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - ENVIRONMENT=development
+      - DEBUG=true
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./services/users:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_network
+    restart: unless-stopped
+
+  # Appointment Service
+  appointment-service:
+    build:
+      context: ./services/appointments
+      dockerfile: Dockerfile
+    container_name: smd_vital_appointments
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_appointments
+      - REDIS_URL=redis://:redis_password_2024@redis:6379/2
+      - RABBITMQ_URL=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - USER_SERVICE_URL=http://user-service:8002
+      - ENVIRONMENT=development
+      - DEBUG=true
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    volumes:
+      - ./services/appointments:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_network
+    restart: unless-stopped
+
+  # Medical Records Service
+  medical-records-service:
+    build:
+      context: ./services/medical-records
+      dockerfile: Dockerfile
+    container_name: smd_vital_medical_records
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_medical_records
+      - REDIS_URL=redis://:redis_password_2024@redis:6379/4
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - USER_SERVICE_URL=http://user-service:8002
+      - ENVIRONMENT=development
+      - DEBUG=true
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./services/medical-records:/app
+      - ./shared:/app/shared
+      - medical_files:/app/uploads
+    networks:
+      - smd_network
+    restart: unless-stopped
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ./services/payments
+      dockerfile: Dockerfile
+    container_name: smd_vital_payments
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_payments
+      - REDIS_URL=redis://:redis_password_2024@redis:6379/5
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - PSE_MERCHANT_ID=${PSE_MERCHANT_ID}
+      - PSE_API_KEY=${PSE_API_KEY}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - USER_SERVICE_URL=http://user-service:8002
+      - ENVIRONMENT=development
+      - DEBUG=true
+    ports:
+      - "8006:8006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./services/payments:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_network
+    restart: unless-stopped
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./services/notifications
+      dockerfile: Dockerfile
+    container_name: smd_vital_notifications
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_notifications
+      - REDIS_URL=redis://:redis_password_2024@redis:6379/3
+      - RABBITMQ_URL=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
+      - ENVIRONMENT=development
+      - DEBUG=true
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./services/notifications:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_network
+    restart: unless-stopped
+
+# Networks
+networks:
+  smd_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  medical_files:
+    driver: local

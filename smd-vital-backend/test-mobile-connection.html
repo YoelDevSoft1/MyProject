@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Conexión Móvil - SMD Vital</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Test de Conexión Móvil - SMD Vital</h1>
+    
+    <div class="test-section">
+        <h2>📱 Información del Dispositivo</h2>
+        <p><strong>User Agent:</strong> <span id="userAgent"></span></p>
+        <p><strong>URL Actual:</strong> <span id="currentUrl"></span></p>
+        <p><strong>Timestamp:</strong> <span id="timestamp"></span></p>
+    </div>
+
+    <div class="test-section">
+        <h2>🌐 Test de Conectividad</h2>
+        <button onclick="testHealth()">Test Health Check</button>
+        <button onclick="testCORS()">Test CORS</button>
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="testRegister()">Test Register</button>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Resultados</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // Mostrar información del dispositivo
+        document.getElementById('userAgent').textContent = navigator.userAgent;
+        document.getElementById('currentUrl').textContent = window.location.href;
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+
+        const API_BASE = 'http://192.168.1.9:8000';
+        
+        // Función para manejar errores de CORS
+        function handleCorsError(error) {
+            if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
+                return 'Error de CORS: El servidor no permite conexiones desde este origen. Verifica la configuración de CORS.';
+            }
+            return error.message;
+        }
+        
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        async function testHealth() {
+            log('🔍 Probando Health Check...', 'info');
+            try {
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Origin': window.location.origin
+                    }
+                });
+                
+                if (response.ok) {
+                    const text = await response.text();
+                    log(`✅ Health Check OK: ${text}`, 'success');
+                } else {
+                    log(`❌ Health Check Error: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Health Check Failed: ${handleCorsError(error)}`, 'error');
+            }
+        }
+
+        async function testCORS() {
+            log('🔍 Probando CORS...', 'info');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+                
+                if (response.ok) {
+                    const corsOrigin = response.headers.get('Access-Control-Allow-Origin');
+                    log(`✅ CORS OK: Origin permitido: ${corsOrigin}`, 'success');
+                } else {
+                    log(`❌ CORS Error: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ CORS Failed: ${handleCorsError(error)}`, 'error');
+            }
+        }
+
+        async function testLogin() {
+            log('🔍 Probando Login...', 'info');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    },
+                    body: JSON.stringify({
+                        email: 'doctor@test.com',
+                        password: 'Doctor123!'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Login OK: ${data.message}`, 'success');
+                    log(`👤 Usuario: ${data.user.first_name} ${data.user.last_name} (${data.user.role})`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Login Error: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Login Failed: ${handleCorsError(error)}`, 'error');
+            }
+        }
+
+        async function testRegister() {
+            log('🔍 Probando Register...', 'info');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    },
+                    body: JSON.stringify({
+                        email: `test${Date.now()}@example.com`,
+                        password: 'Test123!',
+                        first_name: 'Test',
+                        last_name: 'Móvil',
+                        phone: '+573001234567',
+                        role: 'patient'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Register OK: ${data.message}`, 'success');
+                    log(`👤 Usuario creado: ${data.user.first_name} ${data.user.last_name} (${data.user.role})`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Register Error: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Register Failed: ${handleCorsError(error)}`, 'error');
+            }
+        }
+
+        // Auto-test al cargar
+        window.onload = function() {
+            log('🚀 Iniciando tests automáticos...', 'info');
+            setTimeout(testHealth, 1000);
+            setTimeout(testCORS, 2000);
+            setTimeout(testLogin, 3000);
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simple - SMD Vital</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Test Simple - SMD Vital</h1>
+    
+    <div id="info">
+        <p><strong>URL Actual:</strong> <span id="currentUrl"></span></p>
+        <p><strong>User Agent:</strong> <span id="userAgent"></span></p>
+    </div>
+
+    <div>
+        <button onclick="testHealth()">Test Health</button>
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="testRegister()">Test Register</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        document.getElementById('currentUrl').textContent = window.location.href;
+        document.getElementById('userAgent').textContent = navigator.userAgent;
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            document.getElementById('results').appendChild(div);
+        }
+
+        async function testHealth() {
+            log('🔍 Probando Health Check...', 'info');
+            try {
+                const response = await fetch('http://192.168.1.9:8000/health');
+                if (response.ok) {
+                    const text = await response.text();
+                    log(`✅ Health OK: ${text}`, 'success');
+                } else {
+                    log(`❌ Health Error: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Health Failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLogin() {
+            log('🔍 Probando Login...', 'info');
+            try {
+                const response = await fetch('http://192.168.1.9:8000/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'doctor@test.com',
+                        password: 'Doctor123!'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Login OK: ${data.message}`, 'success');
+                    log(`👤 Usuario: ${data.user.first_name} ${data.user.last_name}`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Login Error: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Login Failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testRegister() {
+            log('🔍 Probando Register...', 'info');
+            try {
+                const response = await fetch('http://192.168.1.9:8000/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: `test${Date.now()}@example.com`,
+                        password: 'Test123!',
+                        first_name: 'Test',
+                        last_name: 'Móvil',
+                        phone: '+573001234567',
+                        role: 'patient'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Register OK: ${data.message}`, 'success');
+                    log(`👤 Usuario: ${data.user.first_name} ${data.user.last_name}`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Register Error: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Register Failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-test
+        window.onload = function() {
+            log('🚀 Iniciando tests...', 'info');
+            setTimeout(testHealth, 1000);
+        };
+    </script>
+</body>
+</html>

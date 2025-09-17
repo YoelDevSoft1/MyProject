@@ -1,0 +1,2050 @@
+openapi: 3.0.3
+info:
+  title: SMD Vital - Microservices API
+  description: |
+    API completa para la plataforma de servicios médicos domiciliarios SMD Vital Bogotá.
+    
+    ## Servicios Disponibles
+    
+    - **Authentication Service**: Gestión de autenticación y autorización
+    - **User Service**: Gestión de usuarios y perfiles
+    - **Appointment Service**: Programación y gestión de citas médicas
+    - **Notification Service**: Envío de notificaciones multicanal
+    - **Medical Records Service**: Historiales médicos y documentos
+    - **Payment Service**: Procesamiento de pagos y facturación
+    
+    ## Autenticación
+    
+    Todos los endpoints (excepto públicos) requieren autenticación JWT.
+    Incluye el token en el header: `Authorization: Bearer <token>`
+    
+    ## Códigos de Estado
+    
+    - `200` - Éxito
+    - `201` - Creado exitosamente
+    - `400` - Error en la solicitud
+    - `401` - No autorizado
+    - `403` - Prohibido
+    - `404` - No encontrado
+    - `422` - Error de validación
+    - `500` - Error interno del servidor
+  version: 1.0.0
+  contact:
+    name: SMD Vital Backend Team
+    email: dev@smdvitalbogota.com
+    url: https://smdvitalbogota.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Desarrollo Local (API Gateway)
+  - url: http://localhost:8001
+    description: Auth Service Directo
+  - url: http://localhost:8002
+    description: User Service Directo
+  - url: http://localhost:8003
+    description: Appointment Service Directo
+  - url: https://api.smdvitalbogota.com
+    description: Producción
+
+paths:
+  # Authentication Service Endpoints
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Registrar nuevo usuario
+      description: Crear una nueva cuenta de usuario en el sistema
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+            example:
+              email: "juan.perez@example.com"
+              password: "MiPassword123!"
+              first_name: "Juan"
+              last_name: "Pérez"
+              phone: "+573001234567"
+              role: "patient"
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Error en los datos de entrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Iniciar sesión
+      description: Autenticar usuario y obtener tokens de acceso
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Credenciales incorrectas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Renovar token de acceso
+      description: Obtener nuevo token de acceso usando refresh token
+      operationId: refreshToken
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token renovado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Refresh token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Obtener usuario actual
+      description: Obtener información del usuario autenticado
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Información del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Cerrar sesión
+      description: Invalidar tokens del usuario
+      operationId: logoutUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sesión cerrada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # User Service Endpoints
+  /users/profile:
+    get:
+      tags:
+        - Users
+      summary: Obtener perfil de usuario
+      description: Obtener perfil completo del usuario autenticado
+      operationId: getUserProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Perfil del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+    put:
+      tags:
+        - Users
+      summary: Actualizar perfil
+      description: Actualizar información del perfil de usuario
+      operationId: updateUserProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: Perfil actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  # Appointment Service Endpoints
+  /appointments:
+    get:
+      tags:
+        - Appointments
+      summary: Listar citas
+      description: Obtener lista de citas del usuario
+      operationId: listAppointments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filtrar por estado de cita
+          schema:
+            type: string
+            enum: [pending, confirmed, in_progress, completed, cancelled]
+        - name: page
+          in: query
+          description: Número de página
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Elementos por página
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Lista de citas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentListResponse'
+
+    post:
+      tags:
+        - Appointments
+      summary: Crear nueva cita
+      description: Programar una nueva cita médica
+      operationId: createAppointment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentCreate'
+      responses:
+        '201':
+          description: Cita creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+
+  /appointments/{appointmentId}:
+    get:
+      tags:
+        - Appointments
+      summary: Obtener cita específica
+      description: Obtener detalles de una cita específica
+      operationId: getAppointment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: ID de la cita
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalles de la cita
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '404':
+          description: Cita no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Appointments
+      summary: Actualizar cita
+      description: Actualizar información de una cita existente
+      operationId: updateAppointment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: ID de la cita
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentUpdate'
+      responses:
+        '200':
+          description: Cita actualizada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+
+    delete:
+      tags:
+        - Appointments
+      summary: Cancelar cita
+      description: Cancelar una cita programada
+      operationId: cancelAppointment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: ID de la cita
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Cita cancelada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # Medical Records Service Endpoints
+  /medical-records:
+    post:
+      tags:
+        - Medical Records
+      summary: Crear registro médico
+      description: Crear un nuevo registro médico para un paciente
+      operationId: createMedicalRecord
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordCreate'
+      responses:
+        '201':
+          description: Registro médico creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalRecord'
+        '403':
+          description: Sin permisos para crear registros médicos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /medical-records/patient/{patientId}:
+    get:
+      tags:
+        - Medical Records
+      summary: Obtener registros médicos del paciente
+      description: Obtener todos los registros médicos de un paciente específico
+      operationId: getPatientMedicalRecords
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          description: ID del paciente
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de registros médicos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MedicalRecord'
+
+  /medical-records/{recordId}:
+    get:
+      tags:
+        - Medical Records
+      summary: Obtener registro médico específico
+      description: Obtener un registro médico específico por ID
+      operationId: getMedicalRecord
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          description: ID del registro médico
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Registro médico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalRecord'
+
+  /prescriptions:
+    post:
+      tags:
+        - Medical Records
+      summary: Crear receta médica
+      description: Crear una nueva receta médica
+      operationId: createPrescription
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionCreate'
+      responses:
+        '201':
+          description: Receta creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /prescriptions/patient/{patientId}:
+    get:
+      tags:
+        - Medical Records
+      summary: Obtener recetas del paciente
+      description: Obtener todas las recetas de un paciente
+      operationId: getPatientPrescriptions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          description: ID del paciente
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filtrar por estado de la receta
+          schema:
+            type: string
+            enum: [active, completed, cancelled]
+      responses:
+        '200':
+          description: Lista de recetas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Prescription'
+
+  /vital-signs:
+    post:
+      tags:
+        - Medical Records
+      summary: Registrar signos vitales
+      description: Registrar signos vitales de un paciente
+      operationId: recordVitalSigns
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VitalSignsCreate'
+      responses:
+        '201':
+          description: Signos vitales registrados exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /vital-signs/patient/{patientId}:
+    get:
+      tags:
+        - Medical Records
+      summary: Obtener signos vitales del paciente
+      description: Obtener historial de signos vitales de un paciente
+      operationId: getPatientVitalSigns
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          description: ID del paciente
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          description: Número de registros a obtener
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Lista de signos vitales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VitalSigns'
+
+  # Payments Service Endpoints
+  /payments:
+    post:
+      tags:
+        - Payments
+      summary: Procesar pago
+      description: Procesar un nuevo pago para un servicio médico
+      operationId: createPayment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+      responses:
+        '201':
+          description: Pago procesado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+  /payments/patient/{patientId}:
+    get:
+      tags:
+        - Payments
+      summary: Obtener pagos del paciente
+      description: Obtener historial de pagos de un paciente
+      operationId: getPatientPayments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          description: ID del paciente
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filtrar por estado del pago
+          schema:
+            type: string
+            enum: [pending, completed, failed, refunded]
+      responses:
+        '200':
+          description: Lista de pagos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+
+  /payments/{paymentId}:
+    get:
+      tags:
+        - Payments
+      summary: Obtener pago específico
+      description: Obtener detalles de un pago específico
+      operationId: getPayment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          description: ID del pago
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalles del pago
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+  /invoices:
+    post:
+      tags:
+        - Payments
+      summary: Crear factura
+      description: Crear una nueva factura para un paciente
+      operationId: createInvoice
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceCreate'
+      responses:
+        '201':
+          description: Factura creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+
+  /invoices/patient/{patientId}:
+    get:
+      tags:
+        - Payments
+      summary: Obtener facturas del paciente
+      description: Obtener facturas de un paciente específico
+      operationId: getPatientInvoices
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          description: ID del paciente
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filtrar por estado de la factura
+          schema:
+            type: string
+            enum: [pending, paid, overdue, cancelled]
+      responses:
+        '200':
+          description: Lista de facturas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invoice'
+
+  /payment-methods:
+    post:
+      tags:
+        - Payments
+      summary: Registrar método de pago
+      description: Registrar un nuevo método de pago para el usuario
+      operationId: createPaymentMethod
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentMethodCreate'
+      responses:
+        '201':
+          description: Método de pago registrado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /payment-methods/user/{userId}:
+    get:
+      tags:
+        - Payments
+      summary: Obtener métodos de pago del usuario
+      description: Obtener métodos de pago registrados por un usuario
+      operationId: getUserPaymentMethods
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID del usuario
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de métodos de pago
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentMethod'
+
+  /refunds:
+    post:
+      tags:
+        - Payments
+      summary: Solicitar reembolso
+      description: Solicitar reembolso de un pago realizado
+      operationId: requestRefund
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequestCreate'
+      responses:
+        '201':
+          description: Solicitud de reembolso creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /reports/revenue:
+    get:
+      tags:
+        - Payments
+      summary: Reporte de ingresos
+      description: Obtener reporte de ingresos por período (solo administradores)
+      operationId: getRevenueReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          description: Fecha de inicio
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          required: true
+          description: Fecha de fin
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Reporte de ingresos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevenueReport'
+
+  # Notifications Service Endpoints
+  /notifications:
+    post:
+      tags:
+        - Notifications
+      summary: Crear notificación
+      description: Crear y enviar una nueva notificación
+      operationId: createNotification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationCreate'
+      responses:
+        '201':
+          description: Notificación creada y enviada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+
+  /notifications/user/{userId}:
+    get:
+      tags:
+        - Notifications
+      summary: Obtener notificaciones del usuario
+      description: Obtener notificaciones de un usuario específico
+      operationId: getUserNotifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID del usuario
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filtrar por estado de la notificación
+          schema:
+            type: string
+            enum: [pending, sent, read, failed]
+        - name: limit
+          in: query
+          description: Número de notificaciones a obtener
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Lista de notificaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+
+  /notifications/{notificationId}/mark-read:
+    put:
+      tags:
+        - Notifications
+      summary: Marcar notificación como leída
+      description: Marcar una notificación específica como leída
+      operationId: markNotificationAsRead
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          description: ID de la notificación
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notificación marcada como leída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /notifications/send-template:
+    post:
+      tags:
+        - Notifications
+      summary: Enviar notificación con plantilla
+      description: Enviar notificación usando una plantilla predefinida
+      operationId: sendTemplateNotification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateNotificationRequest'
+      responses:
+        '201':
+          description: Notificación de plantilla enviada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /preferences:
+    post:
+      tags:
+        - Notifications
+      summary: Configurar preferencias de notificación
+      description: Configurar preferencias de notificación del usuario
+      operationId: setUserPreferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPreferenceCreate'
+      responses:
+        '200':
+          description: Preferencias actualizadas exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /preferences/{userId}:
+    get:
+      tags:
+        - Notifications
+      summary: Obtener preferencias de notificación
+      description: Obtener preferencias de notificación de un usuario
+      operationId: getUserPreferences
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID del usuario
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Preferencias de notificación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreference'
+
+  /notifications/stats:
+    get:
+      tags:
+        - Notifications
+      summary: Estadísticas de notificaciones
+      description: Obtener estadísticas de notificaciones (solo administradores)
+      operationId: getNotificationStats
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: start_date
+          in: query
+          description: Fecha de inicio
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          description: Fecha de fin
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Estadísticas de notificaciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationStats'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtenido del endpoint de login
+
+  schemas:
+    # Authentication Schemas
+    UserCreate:
+      type: object
+      required:
+        - email
+        - password
+        - first_name
+        - last_name
+        - phone
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email válido del usuario
+          example: "juan.perez@example.com"
+        password:
+          type: string
+          minLength: 8
+          description: Contraseña segura (mínimo 8 caracteres)
+          example: "MiPassword123!"
+        first_name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          description: Nombre del usuario
+          example: "Juan"
+        last_name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          description: Apellido del usuario
+          example: "Pérez"
+        phone:
+          type: string
+          description: Número de teléfono colombiano
+          example: "+573001234567"
+        role:
+          type: string
+          enum: [patient, doctor, nurse, admin]
+          default: patient
+          description: Rol del usuario en el sistema
+
+    UserLogin:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email del usuario
+        password:
+          type: string
+          description: Contraseña del usuario
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: Token de acceso JWT
+        refresh_token:
+          type: string
+          description: Token de renovación
+        token_type:
+          type: string
+          default: "bearer"
+          description: Tipo de token
+        expires_in:
+          type: integer
+          default: 3600
+          description: Tiempo de expiración en segundos
+        user_id:
+          type: string
+          format: uuid
+          description: ID del usuario
+        email:
+          type: string
+          format: email
+          description: Email del usuario
+        role:
+          type: string
+          enum: [patient, doctor, nurse, admin]
+          description: Rol del usuario
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID único del usuario
+        email:
+          type: string
+          format: email
+          description: Email del usuario
+        first_name:
+          type: string
+          description: Nombre del usuario
+        last_name:
+          type: string
+          description: Apellido del usuario
+        phone:
+          type: string
+          description: Teléfono del usuario
+        role:
+          type: string
+          enum: [patient, doctor, nurse, admin]
+          description: Rol del usuario
+        is_active:
+          type: boolean
+          description: Estado activo del usuario
+        email_verified:
+          type: boolean
+          description: Email verificado
+        two_factor_enabled:
+          type: boolean
+          description: 2FA habilitado
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha de creación
+        last_login:
+          type: string
+          format: date-time
+          description: Último login
+
+    UserProfile:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            address:
+              type: string
+              description: Dirección del usuario
+            emergency_contact:
+              type: string
+              description: Contacto de emergencia
+            medical_conditions:
+              type: array
+              items:
+                type: string
+              description: Condiciones médicas
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        emergency_contact:
+          type: string
+
+    # Appointment Schemas
+    AppointmentCreate:
+      type: object
+      required:
+        - service_type
+        - scheduled_date
+        - address
+      properties:
+        service_type:
+          type: string
+          enum: [consulta_general, inyectologia, toma_muestras, curaciones, signos_vitales]
+          description: Tipo de servicio médico
+        scheduled_date:
+          type: string
+          format: date-time
+          description: Fecha y hora programada
+        address:
+          type: string
+          description: Dirección donde se realizará el servicio
+        notes:
+          type: string
+          description: Notas adicionales
+        emergency:
+          type: boolean
+          default: false
+          description: Es una emergencia
+
+    AppointmentUpdate:
+      type: object
+      properties:
+        scheduled_date:
+          type: string
+          format: date-time
+        address:
+          type: string
+        notes:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, in_progress, completed, cancelled]
+
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID de la cita
+        patient_id:
+          type: string
+          format: uuid
+          description: ID del paciente
+        professional_id:
+          type: string
+          format: uuid
+          description: ID del profesional asignado
+        service_type:
+          type: string
+          description: Tipo de servicio
+        scheduled_date:
+          type: string
+          format: date-time
+          description: Fecha programada
+        status:
+          type: string
+          enum: [pending, confirmed, in_progress, completed, cancelled]
+        address:
+          type: string
+          description: Dirección del servicio
+        notes:
+          type: string
+          description: Notas
+        emergency:
+          type: boolean
+          description: Es emergencia
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AppointmentListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appointment'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Página actual
+        limit:
+          type: integer
+          description: Elementos por página
+        total:
+          type: integer
+          description: Total de elementos
+        pages:
+          type: integer
+          description: Total de páginas
+
+    # Response Schemas
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: true
+        message:
+          type: string
+          description: Mensaje de éxito
+        data:
+          type: object
+          description: Datos adicionales
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: false
+        message:
+          type: string
+          description: Mensaje de error
+        error_code:
+          type: string
+          description: Código de error
+        details:
+          type: object
+          description: Detalles adicionales del error
+
+    ValidationError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: false
+        message:
+          type: string
+          default: "Error de validación"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: Campo con error
+              message:
+                type: string
+                description: Mensaje de error
+              code:
+                type: string
+                description: Código de error
+
+    # Medical Records Schemas
+    MedicalRecordCreate:
+      type: object
+      required:
+        - patient_id
+        - appointment_id
+        - chief_complaint
+        - assessment
+        - plan
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+          description: ID del paciente
+        appointment_id:
+          type: string
+          format: uuid
+          description: ID de la cita médica asociada
+        chief_complaint:
+          type: string
+          description: Motivo principal de consulta
+          example: "Dolor abdominal intenso"
+        present_illness:
+          type: string
+          description: Historia de la enfermedad actual
+        physical_examination:
+          type: string
+          description: Examen físico realizado
+        assessment:
+          type: string
+          description: Evaluación médica y diagnóstico
+          example: "Gastritis aguda"
+        plan:
+          type: string
+          description: Plan de tratamiento
+          example: "Omeprazol 20mg cada 12 horas por 7 días"
+
+    MedicalRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID del registro médico
+        patient_id:
+          type: string
+          format: uuid
+          description: ID del paciente
+        doctor_id:
+          type: string
+          format: uuid
+          description: ID del médico
+        appointment_id:
+          type: string
+          format: uuid
+          description: ID de la cita asociada
+        chief_complaint:
+          type: string
+          description: Motivo principal de consulta
+        present_illness:
+          type: string
+          description: Historia de la enfermedad actual
+        physical_examination:
+          type: string
+          description: Examen físico
+        assessment:
+          type: string
+          description: Evaluación y diagnóstico
+        plan:
+          type: string
+          description: Plan de tratamiento
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha de creación
+
+    PrescriptionCreate:
+      type: object
+      required:
+        - patient_id
+        - medication_name
+        - dosage
+        - frequency
+        - duration
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+          description: ID del paciente
+        medication_name:
+          type: string
+          description: Nombre del medicamento
+          example: "Omeprazol"
+        dosage:
+          type: string
+          description: Dosis del medicamento
+          example: "20mg"
+        frequency:
+          type: string
+          description: Frecuencia de administración
+          example: "Cada 12 horas"
+        duration:
+          type: string
+          description: Duración del tratamiento
+          example: "7 días"
+        instructions:
+          type: string
+          description: Instrucciones especiales
+          example: "Tomar con las comidas"
+
+    Prescription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID de la receta
+        patient_id:
+          type: string
+          format: uuid
+          description: ID del paciente
+        doctor_id:
+          type: string
+          format: uuid
+          description: ID del médico
+        medication_name:
+          type: string
+          description: Nombre del medicamento
+        dosage:
+          type: string
+          description: Dosis
+        frequency:
+          type: string
+          description: Frecuencia
+        duration:
+          type: string
+          description: Duración
+        instructions:
+          type: string
+          description: Instrucciones
+        status:
+          type: string
+          enum: [active, completed, cancelled]
+          description: Estado de la receta
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha de creación
+
+    VitalSignsCreate:
+      type: object
+      required:
+        - patient_id
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+          description: ID del paciente
+        appointment_id:
+          type: string
+          format: uuid
+          description: ID de la cita (opcional)
+        blood_pressure_systolic:
+          type: integer
+          minimum: 60
+          maximum: 300
+          description: Presión arterial sistólica (mmHg)
+          example: 120
+        blood_pressure_diastolic:
+          type: integer
+          minimum: 40
+          maximum: 200
+          description: Presión arterial diastólica (mmHg)
+          example: 80
+        heart_rate:
+          type: integer
+          minimum: 30
+          maximum: 250
+          description: Frecuencia cardíaca (bpm)
+          example: 72
+        temperature:
+          type: number
+          format: float
+          minimum: 30.0
+          maximum: 45.0
+          description: Temperatura corporal (°C)
+          example: 36.5
+        respiratory_rate:
+          type: integer
+          minimum: 8
+          maximum: 60
+          description: Frecuencia respiratoria (rpm)
+          example: 16
+        oxygen_saturation:
+          type: integer
+          minimum: 70
+          maximum: 100
+          description: Saturación de oxígeno (%)
+          example: 98
+        weight:
+          type: number
+          format: float
+          minimum: 0.5
+          maximum: 500.0
+          description: Peso (kg)
+          example: 70.5
+        height:
+          type: number
+          format: float
+          minimum: 0.3
+          maximum: 2.5
+          description: Altura (m)
+          example: 1.75
+
+    VitalSigns:
+      allOf:
+        - $ref: '#/components/schemas/VitalSignsCreate'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: ID del registro
+            recorded_by:
+              type: string
+              format: uuid
+              description: ID del profesional que registró
+            recorded_at:
+              type: string
+              format: date-time
+              description: Fecha y hora del registro
+
+    # Payment Schemas
+    PaymentCreate:
+      type: object
+      required:
+        - patient_id
+        - amount
+        - currency
+        - description
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+          description: ID del paciente
+        appointment_id:
+          type: string
+          format: uuid
+          description: ID de la cita (opcional)
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          description: Monto del pago
+          example: 150000.00
+        currency:
+          type: string
+          enum: [COP, USD]
+          default: COP
+          description: Moneda del pago
+        payment_method_id:
+          type: string
+          format: uuid
+          description: ID del método de pago
+        description:
+          type: string
+          description: Descripción del pago
+          example: "Consulta médica domiciliaria"
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID del pago
+        patient_id:
+          type: string
+          format: uuid
+          description: ID del paciente
+        appointment_id:
+          type: string
+          format: uuid
+          description: ID de la cita
+        amount:
+          type: number
+          format: decimal
+          description: Monto pagado
+        currency:
+          type: string
+          description: Moneda
+        payment_method_id:
+          type: string
+          format: uuid
+          description: ID del método de pago
+        status:
+          type: string
+          enum: [pending, completed, failed, refunded]
+          description: Estado del pago
+        transaction_id:
+          type: string
+          description: ID de la transacción
+        payment_date:
+          type: string
+          format: date-time
+          description: Fecha del pago
+        description:
+          type: string
+          description: Descripción del pago
+        processed_by:
+          type: string
+          format: uuid
+          description: ID del usuario que procesó
+
+    InvoiceCreate:
+      type: object
+      required:
+        - patient_id
+        - subtotal
+        - total_amount
+        - due_date
+        - items
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+          description: ID del paciente
+        appointment_id:
+          type: string
+          format: uuid
+          description: ID de la cita (opcional)
+        subtotal:
+          type: number
+          format: decimal
+          description: Subtotal de la factura
+        tax_amount:
+          type: number
+          format: decimal
+          description: Monto de impuestos
+          default: 0
+        total_amount:
+          type: number
+          format: decimal
+          description: Monto total
+        currency:
+          type: string
+          enum: [COP, USD]
+          default: COP
+          description: Moneda
+        due_date:
+          type: string
+          format: date
+          description: Fecha de vencimiento
+        description:
+          type: string
+          description: Descripción de la factura
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+                description: Descripción del item
+              quantity:
+                type: integer
+                minimum: 1
+                description: Cantidad
+              unit_price:
+                type: number
+                format: decimal
+                description: Precio unitario
+              total:
+                type: number
+                format: decimal
+                description: Total del item
+
+    Invoice:
+      allOf:
+        - $ref: '#/components/schemas/InvoiceCreate'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: ID de la factura
+            invoice_number:
+              type: string
+              description: Número de factura
+            status:
+              type: string
+              enum: [pending, paid, overdue, cancelled]
+              description: Estado de la factura
+            issue_date:
+              type: string
+              format: date-time
+              description: Fecha de emisión
+            created_by:
+              type: string
+              format: uuid
+              description: ID del usuario que creó
+
+    PaymentMethodCreate:
+      type: object
+      required:
+        - user_id
+        - type
+        - provider
+        - last_four
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: ID del usuario
+        type:
+          type: string
+          enum: [credit_card, debit_card, bank_transfer, cash]
+          description: Tipo de método de pago
+        provider:
+          type: string
+          description: Proveedor (Visa, Mastercard, etc.)
+          example: "Visa"
+        last_four:
+          type: string
+          pattern: "^[0-9]{4}$"
+          description: Últimos 4 dígitos
+          example: "4532"
+        expiry_month:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: Mes de expiración
+        expiry_year:
+          type: integer
+          minimum: 2024
+          maximum: 2050
+          description: Año de expiración
+        is_default:
+          type: boolean
+          default: false
+          description: Es el método por defecto
+
+    PaymentMethod:
+      allOf:
+        - $ref: '#/components/schemas/PaymentMethodCreate'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: ID del método de pago
+            is_active:
+              type: boolean
+              description: Está activo
+            created_at:
+              type: string
+              format: date-time
+              description: Fecha de creación
+
+    RefundRequestCreate:
+      type: object
+      required:
+        - payment_id
+        - amount
+        - reason
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+          description: ID del pago a reembolsar
+        amount:
+          type: number
+          format: decimal
+          description: Monto a reembolsar
+        reason:
+          type: string
+          description: Razón del reembolso
+          example: "Cancelación del servicio por parte del paciente"
+
+    RevenueReport:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            start_date:
+              type: string
+              format: date
+            end_date:
+              type: string
+              format: date
+        summary:
+          type: object
+          properties:
+            total_revenue:
+              type: number
+              format: decimal
+              description: Ingresos totales
+            payment_count:
+              type: integer
+              description: Número de pagos
+            average_payment:
+              type: number
+              format: decimal
+              description: Pago promedio
+        by_payment_method:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              count:
+                type: integer
+              amount:
+                type: number
+                format: decimal
+
+    # Notification Schemas
+    NotificationCreate:
+      type: object
+      required:
+        - user_id
+        - type
+        - title
+        - message
+        - channels
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: ID del usuario destinatario
+        type:
+          type: string
+          enum: [appointment_confirmation, appointment_reminder, prescription_ready, payment_confirmation, general]
+          description: Tipo de notificación
+        title:
+          type: string
+          description: Título de la notificación
+          example: "Cita Médica Confirmada"
+        message:
+          type: string
+          description: Mensaje de la notificación
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [email, sms, push, whatsapp]
+          description: Canales de envío
+          example: ["email", "sms"]
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+          default: normal
+          description: Prioridad de la notificación
+        template_data:
+          type: object
+          description: Datos para personalizar plantilla
+        scheduled_for:
+          type: string
+          format: date-time
+          description: Fecha programada para envío (opcional)
+
+    Notification:
+      allOf:
+        - $ref: '#/components/schemas/NotificationCreate'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: ID de la notificación
+            status:
+              type: string
+              enum: [pending, sent, read, failed]
+              description: Estado de la notificación
+            created_by:
+              type: string
+              format: uuid
+              description: ID del usuario que creó
+            created_at:
+              type: string
+              format: date-time
+              description: Fecha de creación
+            sent_at:
+              type: string
+              format: date-time
+              description: Fecha de envío
+            read_at:
+              type: string
+              format: date-time
+              description: Fecha de lectura
+
+    TemplateNotificationRequest:
+      type: object
+      required:
+        - template_name
+        - user_id
+        - template_data
+        - channels
+      properties:
+        template_name:
+          type: string
+          enum: [appointment_confirmation, appointment_reminder, prescription_ready, payment_confirmation]
+          description: Nombre de la plantilla
+        user_id:
+          type: string
+          format: uuid
+          description: ID del usuario destinatario
+        template_data:
+          type: object
+          description: Datos para personalizar la plantilla
+          example:
+            patient_name: "Juan Pérez"
+            appointment_date: "2024-01-15"
+            appointment_time: "10:00 AM"
+            doctor_name: "Dr. María González"
+            location: "Carrera 15 # 93-01, Bogotá"
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [email, sms, push, whatsapp]
+          description: Canales de envío
+
+    UserPreferenceCreate:
+      type: object
+      required:
+        - user_id
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: ID del usuario
+        email_enabled:
+          type: boolean
+          default: true
+          description: Recibir notificaciones por email
+        sms_enabled:
+          type: boolean
+          default: true
+          description: Recibir notificaciones por SMS
+        push_enabled:
+          type: boolean
+          default: true
+          description: Recibir push notifications
+        whatsapp_enabled:
+          type: boolean
+          default: true
+          description: Recibir notificaciones por WhatsApp
+        notification_types:
+          type: array
+          items:
+            type: string
+            enum: [appointment_confirmation, appointment_reminder, prescription_ready, payment_confirmation, general]
+          description: Tipos de notificación habilitados
+
+    UserPreference:
+      allOf:
+        - $ref: '#/components/schemas/UserPreferenceCreate'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: ID de la preferencia
+            created_at:
+              type: string
+              format: date-time
+              description: Fecha de creación
+            updated_at:
+              type: string
+              format: date-time
+              description: Fecha de actualización
+
+    NotificationStats:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            start_date:
+              type: string
+              format: date-time
+            end_date:
+              type: string
+              format: date-time
+        summary:
+          type: object
+          properties:
+            total_notifications:
+              type: integer
+              description: Total de notificaciones
+            sent_notifications:
+              type: integer
+              description: Notificaciones enviadas
+            failed_notifications:
+              type: integer
+              description: Notificaciones fallidas
+            success_rate:
+              type: number
+              format: float
+              description: Tasa de éxito (%)
+        by_type:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Notificaciones por tipo
+
+tags:
+  - name: Authentication
+    description: Gestión de autenticación y autorización
+  - name: Users
+    description: Gestión de usuarios y perfiles
+  - name: Appointments
+    description: Programación y gestión de citas médicas
+  - name: Notifications
+    description: Envío de notificaciones
+  - name: Medical Records
+    description: Historiales médicos
+  - name: Payments
+    description: Procesamiento de pagos
