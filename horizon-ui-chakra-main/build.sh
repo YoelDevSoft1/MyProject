@@ -7,13 +7,22 @@ echo "Building SMD VITAL Frontend..."
 export PORT=3000
 export GENERATE_SOURCEMAP=false
 export DISABLE_ESLINT_PLUGIN=true
+export NODE_ENV=production
 
 # Install dependencies
 echo "Installing dependencies..."
-npm install
+npm install --production=false
 
 # Build the project
 echo "Building React app..."
 npm run build
 
-echo "Build completed successfully!"
+# Verify build
+if [ -d "build" ]; then
+    echo "Build completed successfully!"
+    echo "Build directory contents:"
+    ls -la build/
+else
+    echo "Build failed - no build directory found"
+    exit 1
+fi

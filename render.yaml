@@ -17,16 +17,26 @@ services:
         value: production
       - key: CORS_ORIGINS
         value: https://smd-vital-frontend.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "1440"
 
   # Frontend Service
   - type: web
     name: smd-vital-frontend
     env: static
-    buildCommand: cd horizon-ui-chakra-main && chmod +x build.sh && ./build.sh
+    buildCommand: cd horizon-ui-chakra-main && npm install && npm run build
     staticPublishPath: horizon-ui-chakra-main/build
     envVars:
       - key: REACT_APP_API_URL
         value: https://smd-vital-backend.onrender.com
+      - key: GENERATE_SOURCEMAP
+        value: "false"
+      - key: DISABLE_ESLINT_PLUGIN
+        value: "true"
 
 databases:
   - name: smd-vital-db
