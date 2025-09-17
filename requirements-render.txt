@@ -1,0 +1,90 @@
+# SMD Vital Backend - Requirements for RENDER (Simplified)
+# =======================================================
+
+# Core Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.23
+asyncpg==0.29.0
+alembic==1.13.0
+psycopg2-binary==2.9.9
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+bcrypt==4.1.2
+
+# HTTP Client
+httpx==0.25.2
+
+# CORS
+fastapi-cors==0.0.6
+
+# Environment
+python-dotenv==1.0.0
+
+# Date & Time
+python-dateutil==2.8.2
+
+# Validation
+email-validator==2.1.0
+
+# JWT
+pyjwt==2.8.0
+
+# CORS & Security
+python-cors==1.7.0
+
+# Utilities
+python-slugify==8.0.1
+
+# Performance
+orjson==3.9.10
+
+# File Upload
+aiofiles==23.2.1
+
+# SSL/TLS
+certifi==2023.11.17
+
+# Cryptography
+cryptography==41.0.8
+
+# Environment Detection
+distro==1.8.0
+
+# Configuration Management
+python-decouple==3.8
+
+# Session Management
+itsdangerous==2.1.2
+
+# Async Context Managers
+async-timeout==4.0.3
+
+# URL Parsing
+yarl==1.9.4
+
+# Data Validation Extensions
+pydantic-extra-types==2.2.0
+
+# Memory Caching
+pymemcache==4.0.0
+
+# Template Engine
+chevron==0.14.0
+
+# HTML Processing
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# Colombian specific
+python-colombia==1.0.0
+
+# Development Productivity
+ipython==8.17.2

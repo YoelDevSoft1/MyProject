@@ -28,7 +28,7 @@ services:
   - type: web
     name: smd-vital-frontend
     env: static
-    buildCommand: chmod +x build-frontend.sh && ./build-frontend.sh
+    buildCommand: chmod +x build-frontend-simple.sh && ./build-frontend-simple.sh
     staticPublishPath: horizon-ui-chakra-main/build
     envVars:
       - key: REACT_APP_API_URL

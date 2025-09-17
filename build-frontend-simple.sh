@@ -1,25 +1,33 @@
 #!/bin/bash
 
-# Build script for frontend - to be run from project root
+# Simple build script for frontend
 echo "Building SMD VITAL Frontend..."
 
 # Navigate to frontend directory
 cd horizon-ui-chakra-main
 
-# Check if we're in the right directory
+# Show current directory and contents
+echo "Current directory: $(pwd)"
+echo "Contents:"
+ls -la
+
+# Check if package.json exists
 if [ ! -f "package.json" ]; then
-    echo "Error: package.json not found. Current directory: $(pwd)"
-    ls -la
+    echo "Error: package.json not found"
+    exit 1
+fi
+
+# Check if public directory exists
+if [ ! -d "public" ]; then
+    echo "Error: public directory not found"
     exit 1
 fi
 
 # Check if public/index.html exists
 if [ ! -f "public/index.html" ]; then
-    echo "Error: public/index.html not found. Current directory: $(pwd)"
-    echo "Contents of current directory:"
-    ls -la
+    echo "Error: public/index.html not found"
     echo "Contents of public directory:"
-    ls -la public/ 2>/dev/null || echo "Public directory not found"
+    ls -la public/
     exit 1
 fi
 
