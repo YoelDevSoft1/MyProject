@@ -1,19 +1,17 @@
-# SMD Vital Backend - Requirements for RENDER (Simplified)
-# =======================================================
+# SMD Vital Backend - Minimal Requirements for RENDER
+# ===================================================
 
 # Core Framework
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
-pydantic-settings==2.1.0
 
 # Database
 sqlalchemy==2.0.23
 asyncpg==0.29.0
-alembic==1.13.0
 psycopg2-binary==2.9.9
 
-# Authentication & Security
+# Authentication
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
@@ -21,8 +19,6 @@ bcrypt==4.1.2
 
 # HTTP Client
 httpx==0.25.2
-
-# CORS (using FastAPI built-in CORS)
 
 # Environment
 python-dotenv==1.0.0
@@ -36,54 +32,45 @@ email-validator==2.1.0
 # JWT
 pyjwt==2.8.0
 
-# CORS & Security
-# python-cors removed - using FastAPI built-in CORS
-
 # Utilities
 python-slugify==8.0.1
 
 # Performance
 orjson==3.9.10
 
-# File Upload
+# File handling
 aiofiles==23.2.1
 
-# SSL/TLS
+# SSL
 certifi==2023.11.17
 
 # Cryptography
 cryptography==41.0.8
 
-# Environment Detection
-distro==1.8.0
-
-# Configuration Management
+# Configuration
 python-decouple==3.8
 
-# Session Management
+# Session
 itsdangerous==2.1.2
 
-# Async Context Managers
+# Async
 async-timeout==4.0.3
 
-# URL Parsing
+# URL parsing
 yarl==1.9.4
 
-# Data Validation Extensions
+# Data validation
 pydantic-extra-types==2.2.0
 
-# Memory Caching
+# Memory cache
 pymemcache==4.0.0
 
-# Template Engine
+# Templates
 chevron==0.14.0
 
-# HTML Processing
+# HTML processing
 beautifulsoup4==4.12.2
 lxml==4.9.3
 
-# Colombian specific
-# python-colombia removed - not available
-
-# Development Productivity
+# Development
 ipython==8.17.2

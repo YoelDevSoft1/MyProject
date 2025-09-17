@@ -4,7 +4,7 @@ services:
     name: smd-vital-backend
     env: python
     plan: free
-    buildCommand: pip install -r requirements-render.txt
+    buildCommand: pip install -r requirements-minimal.txt
     startCommand: python main-simple.py
     envVars:
       - key: DATABASE_URL
