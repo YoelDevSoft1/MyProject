@@ -4,8 +4,8 @@ services:
     name: smd-vital-backend
     env: python
     plan: free
-    buildCommand: pip install -r requirements-render.txt
-    startCommand: python -m uvicorn services.auth.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r requirements-simple.txt
+    startCommand: python main.py
     envVars:
       - key: DATABASE_URL
         fromDatabase:
