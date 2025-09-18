@@ -58,7 +58,8 @@ class UserService {
    */
   async updateUserProfile(profileData, token) {
     try {
-      const response = await this.apiService.request('/api/users/profile', {
+      // Usar el endpoint de perfil que existe
+      const response = await this.apiService.request('/users/profile', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -93,8 +94,9 @@ class UserService {
    */
   async getUserNotifications(token, params = {}) {
     try {
+      // Usar el endpoint de notificaciones que existe
       const queryString = new URLSearchParams(params).toString();
-      const endpoint = queryString ? `/api/users/notifications?${queryString}` : '/api/users/notifications';
+      const endpoint = queryString ? `/notifications?${queryString}` : '/notifications';
       
       const response = await this.apiService.request(endpoint, {
         headers: {
@@ -131,7 +133,7 @@ class UserService {
    */
   async markNotificationAsRead(notificationId, token) {
     try {
-      const response = await this.apiService.request(`/api/users/notifications/${notificationId}/read`, {
+      const response = await this.apiService.request(`/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -156,7 +158,7 @@ class UserService {
    */
   async updateNotificationSettings(settings, token) {
     try {
-      const response = await this.apiService.request('/api/users/notifications/settings', {
+      const response = await this.apiService.request('/notifications/settings', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -186,7 +188,7 @@ class UserService {
   async getUsers(token, params = {}) {
     try {
       const queryString = new URLSearchParams(params).toString();
-      const endpoint = queryString ? `/api/users?${queryString}` : '/api/users';
+      const endpoint = queryString ? `/users?${queryString}` : '/users';
       
       const response = await this.apiService.request(endpoint, {
         headers: {
@@ -212,7 +214,7 @@ class UserService {
    */
   async getUserById(userId, token) {
     try {
-      const response = await this.apiService.request(`/api/users/${userId}`, {
+      const response = await this.apiService.request(`/users/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

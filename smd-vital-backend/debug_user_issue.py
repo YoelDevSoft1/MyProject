@@ -194,3 +194,4 @@ if __name__ == "__main__":
     except Exception as e:
         print_status(f"Error inesperado: {e}", "ERROR")
         exit(1)
+

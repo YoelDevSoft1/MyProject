@@ -27,6 +27,7 @@ import { useAuth } from 'contexts/AuthContext';
 import { useNavigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import GoogleAuthImproved from 'components/GoogleAuthImproved';
 import GoogleAuthFallback from 'components/GoogleAuthFallback';
+import GoogleAuthSimple from 'components/GoogleAuthSimple';
 import { MdLocalHospital, MdLock, MdEmail } from 'react-icons/md';
 
 export default function SignIn() {
@@ -38,6 +39,7 @@ export default function SignIn() {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [useGoogleFallback, setUseGoogleFallback] = useState(false);
+  const [useGoogleSimple, setUseGoogleSimple] = useState(true);
 
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
@@ -94,10 +96,9 @@ export default function SignIn() {
       const result = await login(formData);
       
       if (result.success) {
-        // Redirigir a la página que el usuario intentaba acceder originalmente
-        // o al dashboard por defecto
-        const from = location.state?.from || '/admin/dashboard';
-        navigate(from, { replace: true });
+        // Redirigir usando el sistema de detección inteligente
+        // El IntelligentRedirect se encargará de la redirección apropiada
+        navigate('/intelligent-redirect', { replace: true });
       } else {
         setErrors({ general: result.error || 'Error al iniciar sesión' });
       }
@@ -114,10 +115,9 @@ export default function SignIn() {
       const result = await loginWithGoogle(googleUserData);
       
       if (result.success) {
-        // Redirigir a la página que el usuario intentaba acceder originalmente
-        // o al dashboard por defecto
-        const from = location.state?.from || '/admin/dashboard';
-        navigate(from, { replace: true });
+        // Redirigir usando el sistema de detección inteligente
+        // El IntelligentRedirect se encargará de la redirección apropiada
+        navigate('/intelligent-redirect', { replace: true });
       } else {
         setErrors({ general: result.error || 'Error al iniciar sesión con Google' });
       }
@@ -314,7 +314,14 @@ export default function SignIn() {
               </HStack>
 
               {/* Google Auth */}
-              {useGoogleFallback ? (
+              {useGoogleSimple ? (
+                <GoogleAuthSimple
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  isLoading={isLoading}
+                  disabled={isLoading}
+                />
+              ) : useGoogleFallback ? (
                 <GoogleAuthFallback
                   onSuccess={handleGoogleSuccess}
                   onError={handleGoogleError}

@@ -22,6 +22,12 @@ import SignIn from "views/auth/signIn";
 import SignUp from "views/auth/signUp";
 import ForgotPassword from "views/auth/forgotPassword";
 
+// Intelligent Redirect component
+import IntelligentRedirect from "components/IntelligentRedirect";
+
+// Contextual Dashboard component
+import ContextualDashboard from "components/ContextualDashboard";
+
 const routes = [
   {
     name: "Dashboard Principal SMD VITAL",
@@ -29,6 +35,13 @@ const routes = [
     path: "/main",
     icon: <Icon as={IoMdHome} width="20px" height="20px" color="inherit" />,
     component: MainDashboard,
+  },
+  {
+    name: "Dashboard Contextual",
+    layout: "/admin",
+    path: "/contextual-dashboard",
+    icon: <Icon as={IoMdHome} width="20px" height="20px" color="inherit" />,
+    component: ContextualDashboard,
   },
   {
     name: "Dashboard Médico",
@@ -118,6 +131,13 @@ const routes = [
     layout: "/auth",
     path: "/forgot-password",
     component: ForgotPassword,
+  },
+  // Intelligent Redirect Route
+  {
+    name: "Redirección Inteligente",
+    layout: "",
+    path: "/intelligent-redirect",
+    component: IntelligentRedirect,
   },
 ];
 

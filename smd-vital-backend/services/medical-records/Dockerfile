@@ -1,51 +1,41 @@
-# Medical Records Service Dockerfile
 FROM python:3.11-slim
 
-# Set work directory
-WORKDIR /app
-
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
-
-# Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        gcc \
-        libpq-dev \
-        curl \
-        netcat-traditional \
-        libmagic1 \
-        file \
-    && apt-get clean \
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    libffi-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    zlib1g-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libwebp-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libxcb1-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Copiar archivos de dependencias
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+# Instalar dependencias de Python
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project
+# Copiar código fuente
 COPY . .
 
-# Create directories for file storage
-RUN mkdir -p /app/storage/medical-documents \
-    && mkdir -p /app/storage/temp
+# Crear directorio para uploads
+RUN mkdir -p /app/uploads
 
-# Create non-root user
-RUN adduser --disabled-password --gecos '' appuser \
-    && chown -R appuser:appuser /app
-USER appuser
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8005/health || exit 1
-
-# Expose port
+# Exponer puerto
 EXPOSE 8005
 
-# Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8005"]
+# Comando por defecto
+CMD ["python", "main.py"]

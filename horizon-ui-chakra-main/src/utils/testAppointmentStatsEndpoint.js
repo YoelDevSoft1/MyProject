@@ -79,3 +79,4 @@ export const testAppointmentStatsEndpoint = {
 };
 
 export default testAppointmentStatsEndpoint;
+

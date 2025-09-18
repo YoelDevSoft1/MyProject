@@ -199,3 +199,4 @@ window.getTokenInfo = () => tokenDebugger.getTokenInfo();
 window.clearToken = () => tokenDebugger.clearToken();
 
 export default tokenDebugger;
+

@@ -85,3 +85,4 @@ export const diagnoseAppointments = {
 };
 
 export default diagnoseAppointments;
+

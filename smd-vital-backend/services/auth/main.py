@@ -15,6 +15,7 @@ from pydantic import BaseModel, EmailStr, validator
 
 # Importar el módulo de base de datos
 from database_auth import db_auth, DatabaseAuthError
+from user_detection_service import user_detection_service, UserType
 
 # Configuración de logging
 logging.basicConfig(
@@ -192,6 +193,13 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+# Metrics endpoint for Prometheus
+@app.get("/metrics", tags=["Metrics"])
+async def metrics():
+    """Prometheus metrics endpoint"""
+    from shared.metrics import get_metrics_response
+    return get_metrics_response()
+
 @app.get("/", tags=["Root"])
 async def root():
     """Root endpoint"""
@@ -256,6 +264,13 @@ async def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
         
         logger.info(f"Successful login for user: {user['email']}")
         
+        # Realizar detección inteligente del usuario
+        detection_result = user_detection_service.detect_user_type(user)
+        dashboard_config = user_detection_service.get_user_dashboard_config(
+            detection_result["detected_type"], 
+            user.get("specialty", "")
+        )
+        
         # Crear tokens
         access_token = create_access_token({"sub": user["id"], "email": user["email"], "role": user["role"]})
         refresh_token = create_refresh_token({"sub": user["id"]})
@@ -263,7 +278,15 @@ async def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "token_type": "bearer"
+            "token_type": "bearer",
+            "user_detection": {
+                "detected_type": detection_result["detected_type"].value,
+                "confidence": detection_result["confidence"],
+                "suggested_interface": detection_result["suggested_interface"],
+                "category": detection_result["category"].value,
+                "permissions": detection_result["permissions"]
+            },
+            "dashboard_config": dashboard_config
         }
         
     except HTTPException:
@@ -276,6 +299,47 @@ async def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
 async def get_current_user_profile(current_user: dict = Depends(get_current_user)):
     """Obtener información del usuario actual"""
     return db_auth.user_to_response(current_user)
+
+@app.get("/me/detection", tags=["Authentication"])
+async def get_user_detection_info(current_user: dict = Depends(get_current_user)):
+    """Obtener información de detección inteligente del usuario actual"""
+    try:
+        # Realizar detección inteligente
+        detection_result = user_detection_service.detect_user_type(current_user)
+        
+        # Obtener configuración del dashboard
+        dashboard_config = user_detection_service.get_user_dashboard_config(
+            detection_result["detected_type"], 
+            current_user.get("specialty", "")
+        )
+        
+        # Preparar respuesta
+        response = {
+            "user_id": current_user.get("id"),
+            "email": current_user.get("email"),
+            "detection": {
+                "detected_type": detection_result["detected_type"].value,
+                "confidence": detection_result["confidence"],
+                "reasons": detection_result["reasons"],
+                "category": detection_result["category"].value,
+                "suggested_interface": detection_result["suggested_interface"],
+                "permissions": detection_result["permissions"]
+            },
+            "dashboard_config": dashboard_config,
+            "original_role": current_user.get("role"),
+            "specialty": current_user.get("specialty", ""),
+            "detection_timestamp": datetime.utcnow().isoformat()
+        }
+        
+        logger.info(f"Detección de usuario completada para {current_user.get('email')}: {detection_result['detected_type'].value}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error en detección de usuario: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al detectar tipo de usuario"
+        )
 
 @app.get("/users/{user_id}", response_model=UserResponse, tags=["Authentication"])
 async def get_user_by_id(user_id: str):
@@ -368,6 +432,11 @@ async def logout_user():
     """Cerrar sesión de usuario"""
     # En una implementación real, invalidarías el token aquí
     return {"message": "Logout exitoso"}
+
+@app.post("/google/verify", tags=["Authentication"])
+async def google_verify_token():
+    """Endpoint para verificación de tokens de Google (FedCM)"""
+    return {"status": "ok", "message": "Google token verification endpoint"}
 
 @app.post("/google", response_model=Token, tags=["Authentication"])
 async def google_auth(google_data: GoogleAuthData):

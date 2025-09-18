@@ -63,3 +63,4 @@ const transformedData = transformUserProfile(backendUserData);
 console.log(JSON.stringify(transformedData, null, 2));
 
 console.log('\nNombre completo generado:', transformedData.name);
+

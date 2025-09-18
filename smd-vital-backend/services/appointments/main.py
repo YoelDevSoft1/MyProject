@@ -7,10 +7,20 @@ Microservicio de gestión de citas médicas para la plataforma SMD Vital.
 
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from typing import Optional, List
 import uuid
+
+# Importar función de autenticación (simulada por ahora)
+def get_current_user():
+    """Función temporal de autenticación - en producción debería validar el JWT"""
+    # Por ahora retornamos un usuario de prueba
+    return {
+        "id": "a87e330d-54d4-4b26-84cf-97fd75703e1d",
+        "email": "yoeldevsoft@gmail.com",
+        "role": "patient"
+    }
 
 from appointment_models import (
     AppointmentCreate, 
@@ -20,6 +30,8 @@ from appointment_models import (
     AppointmentStatsResponse
 )
 from database_sqlalchemy import db
+from reservation_service import AppointmentReservationService
+import redis
 
 # Logging configuration
 logging.basicConfig(
@@ -41,11 +53,26 @@ app = FastAPI(
 # CORS is handled by Nginx API Gateway
 # No need for CORS middleware in individual microservices
 
+# Inicializar servicios
+reservation_service = None
+
 # Startup event
 @app.on_event("startup")
 async def startup_event():
-    """Inicializar motor de base de datos"""
+    """Inicializar motor de base de datos y servicios"""
     await db.init_engine()
+    
+    # Inicializar Redis para reservas temporales
+    global reservation_service
+    redis_client = redis.Redis(
+        host='redis', 
+        port=6379, 
+        db=0, 
+        password='redis_password_2024',
+        decode_responses=True
+    )
+    reservation_service = AppointmentReservationService(db, redis_client)
+    
     logger.info("Appointment service initialized successfully")
 
 # Shutdown event
@@ -149,6 +176,57 @@ async def get_appointment_stats():
         logger.error(f"Error getting appointment stats: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
+@app.get("/appointments/availability", tags=["Availability"])
+async def get_available_slots(
+    doctor_id: uuid.UUID = Query(..., description="ID del doctor"),
+    date: str = Query(..., description="Fecha en formato YYYY-MM-DD")
+):
+    """Obtener horarios disponibles de un doctor para una fecha específica"""
+    try:
+        # Convertir fecha string a datetime
+        target_date = datetime.fromisoformat(date)
+        
+        # Obtener citas existentes para esa fecha
+        existing_appointments = await db.get_appointments(
+            professional_id=doctor_id,
+            start_date=target_date,
+            end_date=target_date.replace(hour=23, minute=59, second=59)
+        )
+        
+        # Generar slots disponibles (ejemplo: cada 30 minutos de 8:00 a 18:00)
+        available_slots = []
+        start_hour = 8
+        end_hour = 18
+        slot_duration = 30  # minutos
+        
+        for hour in range(start_hour, end_hour):
+            for minute in range(0, 60, slot_duration):
+                slot_time = target_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # Verificar si el slot está disponible
+                is_available = not any(
+                    apt["scheduled_date"] == slot_time.isoformat() 
+                    for apt in existing_appointments.get("appointments", [])
+                )
+                
+                if is_available:
+                    available_slots.append({
+                        "datetime": slot_time.isoformat(),
+                        "time": slot_time.strftime("%H:%M"),
+                        "available": True
+                    })
+        
+        return {
+            "doctor_id": str(doctor_id),
+            "date": date,
+            "slots": available_slots,
+            "total_slots": len(available_slots)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting available slots: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
 @app.get("/appointments/{appointment_id}", response_model=AppointmentResponse, tags=["Appointments"])
 async def get_appointment(appointment_id: uuid.UUID):
     """Obtener cita médica por ID"""
@@ -206,6 +284,130 @@ async def delete_appointment(appointment_id: uuid.UUID):
         raise
     except Exception as e:
         logger.error(f"Error deleting appointment {appointment_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+# ===== RESERVATION ENDPOINTS =====
+
+@app.post("/appointments/reserve", tags=["Reservations"])
+async def create_temporary_reservation(reservation_data: dict, current_user: dict = Depends(get_current_user)):
+    """Crear reserva temporal de horario"""
+    try:
+        if not reservation_service:
+            raise HTTPException(status_code=500, detail="Servicio de reservas no disponible")
+        
+        # Usar el patient_id del usuario autenticado
+        patient_id = current_user.get("id")
+        if not patient_id:
+            raise HTTPException(status_code=400, detail="ID de paciente no encontrado")
+        
+        result = await reservation_service.create_temporary_reservation(
+            doctor_id=reservation_data.get("doctor_id"),
+            slot_datetime=datetime.fromisoformat(reservation_data.get("slot_datetime")),
+            patient_id=patient_id,  # Usar el ID del usuario autenticado
+            medical_service_id=reservation_data.get("medical_service_id"),
+            appointment_type=reservation_data.get("appointment_type", "CONSULTATION")
+        )
+        
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["error"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating temporary reservation: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.post("/appointments/confirm", tags=["Reservations"])
+async def confirm_reservation(confirmation_data: dict, current_user: dict = Depends(get_current_user)):
+    """Confirmar reserva temporal y crear cita definitiva"""
+    try:
+        if not reservation_service:
+            raise HTTPException(status_code=500, detail="Servicio de reservas no disponible")
+        
+        # Usar el patient_id del usuario autenticado
+        patient_id = current_user.get("id")
+        if not patient_id:
+            raise HTTPException(status_code=400, detail="ID de paciente no encontrado")
+        
+        result = await reservation_service.confirm_reservation(
+            reservation_id=confirmation_data.get("reservation_id"),
+            patient_data=confirmation_data.get("patient_data", {})
+        )
+        
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["error"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error confirming reservation: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.delete("/appointments/reserve/{reservation_id}", tags=["Reservations"])
+async def cancel_reservation(reservation_id: str):
+    """Cancelar reserva temporal"""
+    try:
+        if not reservation_service:
+            raise HTTPException(status_code=500, detail="Servicio de reservas no disponible")
+        
+        result = await reservation_service.cancel_reservation(reservation_id)
+        
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["error"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling reservation: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.get("/appointments/reserve/{reservation_id}/status", tags=["Reservations"])
+async def get_reservation_status(reservation_id: str):
+    """Obtener estado de una reserva temporal"""
+    try:
+        if not reservation_service:
+            raise HTTPException(status_code=500, detail="Servicio de reservas no disponible")
+        
+        result = await reservation_service.get_reservation_status(reservation_id)
+        
+        if not result["success"]:
+            raise HTTPException(status_code=404, detail=result["error"])
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting reservation status: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.post("/appointments/validate-slot", tags=["Availability"])
+async def validate_slot_availability(validation_data: dict):
+    """Validar disponibilidad de un slot específico"""
+    try:
+        doctor_id = validation_data.get("doctor_id")
+        slot_datetime = datetime.fromisoformat(validation_data.get("slot_datetime"))
+        
+        # Verificar si hay citas en ese horario
+        existing_appointments = await db.get_appointments(
+            professional_id=doctor_id,
+            start_date=slot_datetime,
+            end_date=slot_datetime
+        )
+        
+        is_available = len(existing_appointments.get("appointments", [])) == 0
+        
+        return {
+            "available": is_available,
+            "doctor_id": doctor_id,
+            "slot_datetime": slot_datetime.isoformat(),
+            "message": "Slot disponible" if is_available else "Slot no disponible"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error validating slot availability: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 if __name__ == "__main__":

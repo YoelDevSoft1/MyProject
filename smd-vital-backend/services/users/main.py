@@ -260,6 +260,115 @@ async def mark_notification_read(notification_id: str):
             "error": "Error al marcar la notificación"
         }
 
+# Doctors endpoints
+@app.get("/doctors/search", tags=["Doctors"])
+async def search_doctors(
+    specialty: str = None,
+    is_active: bool = True
+):
+    """Buscar doctores disponibles"""
+    try:
+        # Datos mock de doctores para demostración
+        doctors = [
+            {
+                "id": "1",
+                "name": "Dr. Juan Pérez",
+                "specialty": "Medicina General",
+                "department": "Medicina Interna",
+                "is_active": True,
+                "email": "juan.perez@smdvital.com",
+                "phone": "+57 300 123 4567",
+                "experience_years": 10,
+                "rating": 4.8,
+                "available_hours": "08:00-17:00"
+            },
+            {
+                "id": "2", 
+                "name": "Dra. María García",
+                "specialty": "Cardiología",
+                "department": "Cardiología",
+                "is_active": True,
+                "email": "maria.garcia@smdvital.com",
+                "phone": "+57 300 234 5678",
+                "experience_years": 15,
+                "rating": 4.9,
+                "available_hours": "09:00-18:00"
+            },
+            {
+                "id": "3",
+                "name": "Dr. Carlos López",
+                "specialty": "Pediatría", 
+                "department": "Pediatría",
+                "is_active": True,
+                "email": "carlos.lopez@smdvital.com",
+                "phone": "+57 300 345 6789",
+                "experience_years": 8,
+                "rating": 4.7,
+                "available_hours": "08:30-16:30"
+            },
+            {
+                "id": "4",
+                "name": "Dra. Ana Rodríguez",
+                "specialty": "Ginecología",
+                "department": "Ginecología",
+                "is_active": True,
+                "email": "ana.rodriguez@smdvital.com",
+                "phone": "+57 300 456 7890",
+                "experience_years": 12,
+                "rating": 4.8,
+                "available_hours": "09:00-17:00"
+            },
+            {
+                "id": "5",
+                "name": "Dr. Luis Martínez",
+                "specialty": "Neurología",
+                "department": "Neurología", 
+                "is_active": True,
+                "email": "luis.martinez@smdvital.com",
+                "phone": "+57 300 567 8901",
+                "experience_years": 20,
+                "rating": 4.9,
+                "available_hours": "08:00-16:00"
+            },
+            {
+                "id": "6",
+                "name": "Dra. Carmen Silva",
+                "specialty": "Dermatología",
+                "department": "Dermatología",
+                "is_active": True,
+                "email": "carmen.silva@smdvital.com",
+                "phone": "+57 300 678 9012",
+                "experience_years": 7,
+                "rating": 4.6,
+                "available_hours": "10:00-18:00"
+            }
+        ]
+        
+        # Filtrar por especialidad si se proporciona
+        if specialty:
+            doctors = [d for d in doctors if specialty.lower() in d["specialty"].lower()]
+        
+        # Filtrar por estado activo
+        if is_active is not None:
+            doctors = [d for d in doctors if d["is_active"] == is_active]
+        
+        return {
+            "success": True,
+            "data": doctors,
+            "total": len(doctors),
+            "filters": {
+                "specialty": specialty,
+                "is_active": is_active
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error searching doctors: {e}")
+        return {
+            "success": False,
+            "error": "Error interno del servidor"
+        }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

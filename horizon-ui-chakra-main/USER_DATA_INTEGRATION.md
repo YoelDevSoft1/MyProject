@@ -164,3 +164,4 @@ La aplicación ahora:
 ---
 
 **¡Los nombres de usuario ahora se muestran correctamente!** 🎉
+

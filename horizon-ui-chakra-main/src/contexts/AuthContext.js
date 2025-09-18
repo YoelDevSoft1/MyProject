@@ -2,6 +2,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import apiService from '../services/apiService';
 import userService from '../services/userService';
+import userDetectionService from '../services/userDetectionService';
+import dashboardService from '../services/dashboardService';
 
 const AuthContext = createContext();
 
@@ -18,11 +20,14 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('smd_vital_token'));
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userDetection, setUserDetection] = useState(null);
+  const [detectionLoading, setDetectionLoading] = useState(false);
 
   const logout = () => {
     setUser(null);
     setToken(null);
     setIsAuthenticated(false);
+    setUserDetection(null);
     localStorage.removeItem('smd_vital_token');
   };
 
@@ -40,6 +45,11 @@ export const AuthProvider = ({ children }) => {
         const transformedUser = userService.transformUserProfile(userData);
         setUser(transformedUser);
         setIsAuthenticated(true);
+        
+        // Realizar detección automática del tipo de usuario
+        setTimeout(() => {
+          detectUserType();
+        }, 1000);
       } else {
         logout();
       }
@@ -79,6 +89,11 @@ export const AuthProvider = ({ children }) => {
           const userData = userResponse.data;
           const transformedUser = userService.transformUserProfile(userData);
           setUser(transformedUser);
+          
+          // Realizar detección automática del tipo de usuario
+          setTimeout(() => {
+            detectUserType();
+          }, 1000); // Pequeño delay para asegurar que el usuario esté establecido
         }
         
         return { success: true, data: response.data };
@@ -114,6 +129,83 @@ export const AuthProvider = ({ children }) => {
   const updateUser = (userData) => {
     setUser(prevUser => ({ ...prevUser, ...userData }));
   };
+
+  // ===== USER DETECTION METHODS =====
+  
+  const detectUserType = useCallback(async () => {
+    if (!token || !isAuthenticated) return;
+    
+    try {
+      setDetectionLoading(true);
+      const response = await userDetectionService.getUserDetectionInfo(token);
+      
+      if (response.success) {
+        setUserDetection(response.data);
+        return response.data;
+      } else {
+        console.error('Error detecting user type:', response.error);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error in user detection:', error);
+      return null;
+    } finally {
+      setDetectionLoading(false);
+    }
+  }, [token, isAuthenticated]);
+
+  const getRouteConfig = useCallback(() => {
+    if (!userDetection) return null;
+    return userDetectionService.getRouteConfig(userDetection);
+  }, [userDetection]);
+
+  const getWelcomeMessage = useCallback(() => {
+    if (!userDetection) return null;
+    return userDetectionService.getWelcomeMessage(userDetection);
+  }, [userDetection]);
+
+  const hasPermission = useCallback((action) => {
+    if (!userDetection) return false;
+    return userDetectionService.hasPermission(userDetection, action);
+  }, [userDetection]);
+
+  const getRecommendedWidgets = useCallback(() => {
+    if (!userDetection) return [];
+    return userDetectionService.getRecommendedWidgets(userDetection);
+  }, [userDetection]);
+
+  const getThemeConfig = useCallback(() => {
+    if (!userDetection) return null;
+    return userDetectionService.getThemeConfig(userDetection);
+  }, [userDetection]);
+
+  // ===== DASHBOARD METHODS =====
+  
+  const getContextualDashboard = useCallback(async (context = {}) => {
+    if (!userDetection || !token) return null;
+    
+    try {
+      const response = await dashboardService.getContextualDashboard(token, userDetection, context);
+      return response;
+    } catch (error) {
+      console.error('Error getting contextual dashboard:', error);
+      return { success: false, error: error.message };
+    }
+  }, [userDetection, token]);
+
+  const refreshDashboard = useCallback(async () => {
+    if (!userDetection) return;
+    
+    try {
+      const response = await getContextualDashboard({ force_refresh: true });
+      if (response.success) {
+        // El dashboard se actualizará automáticamente
+        return response;
+      }
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error);
+    }
+  }, [userDetection, getContextualDashboard]);
 
   const loginWithGoogle = async (googleUserData) => {
     try {
@@ -193,6 +285,8 @@ export const AuthProvider = ({ children }) => {
     token,
     isLoading,
     isAuthenticated,
+    userDetection,
+    detectionLoading,
     login,
     register,
     logout,
@@ -202,6 +296,16 @@ export const AuthProvider = ({ children }) => {
     getUserProfile,
     updateUserProfile,
     getUserNotifications,
+    // User Detection Methods
+    detectUserType,
+    getRouteConfig,
+    getWelcomeMessage,
+    hasPermission,
+    getRecommendedWidgets,
+    getThemeConfig,
+    // Dashboard Methods
+    getContextualDashboard,
+    refreshDashboard,
   };
 
   return (

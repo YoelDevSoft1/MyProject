@@ -1,374 +1,564 @@
 """
-SMD Vital - Medical Records Service
-===================================
-
-Microservicio de gestión de registros médicos para la plataforma SMD Vital.
+SMD VITAL - Medical Records Service
+Servicio principal para manejo de consultas médicas, registros y calificaciones
 """
 
-from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
-from typing import List, Optional
 import uuid
-from datetime import datetime, date
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
 import logging
+from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+import json
 
-from models.database import get_db, MedicalRecord, MedicalHistory, Prescription, LabResult, VitalSigns
-from models import MedicalRecordCreate, MedicalRecordResponse, MedicalHistoryCreate, PrescriptionCreate, LabResultCreate, VitalSignsCreate
-from security import verify_token, get_current_user
+from medical_record_service import MedicalRecordService, RecordType, MedicalRecord
+from prescription_service import PrescriptionService, Prescription, Medication
+from rating_service import RatingService, DoctorRating, RatingAggregate
+from database_sqlalchemy import DatabaseManager
 
-# Logging configuration
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# FastAPI app instance
+# Inicializar FastAPI
 app = FastAPI(
-    title="SMD Vital - Medical Records Service",
-    description="Microservicio de gestión de registros médicos, historiales, recetas y resultados de laboratorio",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    title="SMD VITAL Medical Records Service",
+    description="Servicio para manejo de registros médicos, prescripciones y calificaciones",
+    version="1.0.0"
 )
 
-# CORS is handled by Nginx API Gateway
-# No need for CORS middleware in individual microservices
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-security = HTTPBearer()
+# Inicializar servicios
+db_manager = None
+medical_service = None
+prescription_service = None
+rating_service = None
 
-# Medical Records Endpoints
-@app.post("/medical-records", response_model=MedicalRecordResponse, status_code=status.HTTP_201_CREATED, tags=["Medical Records"])
+# =============================================
+# MODELOS PYDANTIC
+# =============================================
+
+class ConsultationData(BaseModel):
+    chief_complaint: str = Field(..., description="Motivo principal de consulta")
+    history_present_illness: str = Field(..., description="Historia de la enfermedad actual")
+    physical_examination: Dict[str, Any] = Field(..., description="Examen físico")
+    assessment: str = Field(..., description="Evaluación/Diagnóstico")
+    plan: str = Field(..., description="Plan de tratamiento")
+    prescriptions: List[Dict[str, Any]] = Field(default=[], description="Medicamentos recetados")
+    follow_up: Optional[Dict[str, Any]] = Field(None, description="Seguimiento recomendado")
+
+class MedicationData(BaseModel):
+    name: str = Field(..., description="Nombre del medicamento")
+    dosage: str = Field(..., description="Dosis")
+    frequency: str = Field(..., description="Frecuencia")
+    duration: str = Field(..., description="Duración del tratamiento")
+    instructions: str = Field(..., description="Instrucciones especiales")
+    quantity: Optional[int] = Field(None, description="Cantidad")
+
+class PrescriptionRequest(BaseModel):
+    medical_record_id: str = Field(..., description="ID del registro médico")
+    medications: List[MedicationData] = Field(..., description="Lista de medicamentos")
+    doctor_notes: str = Field(default="", description="Notas del doctor")
+
+class RatingRequest(BaseModel):
+    doctor_id: str = Field(..., description="ID del doctor")
+    appointment_id: str = Field(..., description="ID de la cita")
+    rating: int = Field(..., ge=1, le=5, description="Calificación del 1 al 5")
+    comment: str = Field(default="", description="Comentario opcional")
+    categories: Optional[Dict[str, int]] = Field(None, description="Calificaciones por categorías")
+
+class MedicalRecordResponse(BaseModel):
+    id: str
+    patient_id: str
+    doctor_id: str
+    appointment_id: str
+    record_type: str
+    version: int
+    clinical_data: Dict[str, Any]
+    created_at: datetime
+    status: str
+
+class PrescriptionResponse(BaseModel):
+    id: str
+    medical_record_id: str
+    patient_id: str
+    doctor_id: str
+    prescription_data: Dict[str, Any]
+    pdf_url: Optional[str]
+    status: str
+    expires_at: Optional[datetime]
+    created_at: datetime
+
+class RatingResponse(BaseModel):
+    id: str
+    doctor_id: str
+    patient_id: str
+    appointment_id: str
+    rating: int
+    comment: Optional[str]
+    categories: Dict[str, int]
+    created_at: datetime
+    is_verified: bool
+
+class RatingAggregateResponse(BaseModel):
+    doctor_id: str
+    total_ratings: int
+    average_rating: float
+    rating_distribution: Dict[str, int]
+    category_averages: Dict[str, float]
+    confidence_score: float
+    last_updated: datetime
+
+# =============================================
+# DEPENDENCIAS
+# =============================================
+
+async def get_current_user():
+    """
+    Mock de autenticación - en producción usar JWT
+    """
+    return {
+        "id": "550e8400-e29b-41d4-a716-446655440001",
+        "role": "doctor",
+        "email": "doctor@smdvital.com"
+    }
+
+# =============================================
+# STARTUP Y SHUTDOWN
+# =============================================
+
+@app.on_event("startup")
+async def startup_event():
+    """Inicializar servicios al arrancar"""
+    global db_manager, medical_service, prescription_service, rating_service
+    
+    try:
+        # Inicializar base de datos
+        db_manager = DatabaseManager()
+        await db_manager.init_engine()
+        
+        # Inicializar servicios
+        medical_service = MedicalRecordService(db_manager)
+        prescription_service = PrescriptionService(db_manager)
+        rating_service = RatingService(db_manager)
+        
+        logger.info("Medical Records Service initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Error initializing Medical Records Service: {e}")
+        raise
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cerrar conexiones al apagar"""
+    if db_manager:
+        await db_manager.close()
+    logger.info("Medical Records Service shutdown")
+
+# =============================================
+# ENDPOINTS DE REGISTROS MÉDICOS
+# =============================================
+
+@app.post("/medical-records", response_model=MedicalRecordResponse, tags=["Medical Records"])
 async def create_medical_record(
-    record_data: MedicalRecordCreate,
-    db: Session = Depends(get_db),
+    appointment_id: str,
+    consultation_data: ConsultationData,
     current_user: dict = Depends(get_current_user)
 ):
-    """Crear un nuevo registro médico"""
+    """Crear un nuevo registro médico de consulta"""
     try:
-        # Verificar permisos (solo doctores y admins pueden crear registros)
-        if current_user.get("role") not in ["doctor", "admin"]:
-            raise HTTPException(status_code=403, detail="No tiene permisos para crear registros médicos")
+        # Obtener datos de la cita
+        appointment_query = "SELECT patient_id, doctor_id FROM appointments WHERE id = %s"
+        appointment = await db_manager.fetch_one(appointment_query, [appointment_id])
         
-        record = MedicalRecord(
-            id=str(uuid.uuid4()),
-            patient_id=record_data.patient_id,
-            doctor_id=current_user["user_id"],
-            appointment_id=record_data.appointment_id,
-            chief_complaint=record_data.chief_complaint,
-            present_illness=record_data.present_illness,
-            physical_examination=record_data.physical_examination,
-            assessment=record_data.assessment,
-            plan=record_data.plan,
-            created_at=datetime.utcnow()
+        if not appointment:
+            raise HTTPException(status_code=404, detail="Appointment not found")
+        
+        # Estructurar datos clínicos
+        clinical_data = {
+            "consultation": consultation_data.dict(),
+            "created_by": current_user["id"],
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        # Crear registro médico
+        record = await medical_service.create_medical_record(
+            patient_id=appointment["patient_id"],
+            doctor_id=appointment["doctor_id"],
+            appointment_id=appointment_id,
+            record_type=RecordType.CONSULTATION,
+            clinical_data=clinical_data,
+            created_by=current_user["id"]
         )
         
-        db.add(record)
-        db.commit()
-        db.refresh(record)
-        
-        logger.info(f"Medical record created: {record.id} for patient: {record.patient_id}")
-        return record
+        return MedicalRecordResponse(
+            id=record.id,
+            patient_id=record.patient_id,
+            doctor_id=record.doctor_id,
+            appointment_id=record.appointment_id,
+            record_type=record.record_type,
+            version=record.version,
+            clinical_data=record.clinical_data,
+            created_at=record.created_at,
+            status=record.status
+        )
         
     except Exception as e:
-        db.rollback()
-        logger.error(f"Error creating medical record: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al crear registro médico: {str(e)}")
+        logger.error(f"Error creating medical record: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/medical-records/patient/{patient_id}", response_model=List[MedicalRecordResponse], tags=["Medical Records"])
-async def get_patient_medical_records(
+async def get_patient_medical_history(
     patient_id: str,
-    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=100),
+    record_type: Optional[str] = Query(None),
     current_user: dict = Depends(get_current_user)
 ):
-    """Obtener todos los registros médicos de un paciente"""
+    """Obtener historial médico de un paciente"""
     try:
-        # Verificar permisos (paciente puede ver sus propios registros, doctores y admins pueden ver todos)
-        if current_user.get("role") not in ["doctor", "admin"] and current_user.get("user_id") != patient_id:
-            raise HTTPException(status_code=403, detail="No tiene permisos para acceder a estos registros")
+        # Verificar permisos (solo el paciente o su doctor pueden ver el historial)
+        if current_user["role"] not in ["doctor", "nurse", "admin"]:
+            if current_user["id"] != patient_id:
+                raise HTTPException(status_code=403, detail="Access denied")
         
-        records = db.query(MedicalRecord).filter(MedicalRecord.patient_id == patient_id).order_by(MedicalRecord.created_at.desc()).all()
-        return records
+        record_type_enum = None
+        if record_type:
+            try:
+                record_type_enum = RecordType(record_type)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid record type")
         
-    except Exception as e:
-        logger.error(f"Error getting patient medical records: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al obtener registros médicos: {str(e)}")
-
-@app.get("/medical-records/{record_id}", response_model=MedicalRecordResponse, tags=["Medical Records"])
-async def get_medical_record(
-    record_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Obtener un registro médico específico"""
-    try:
-        record = db.query(MedicalRecord).filter(MedicalRecord.id == record_id).first()
+        records = await medical_service.get_patient_medical_history(
+            patient_id=patient_id,
+            limit=limit,
+            record_type=record_type_enum
+        )
         
-        if not record:
-            raise HTTPException(status_code=404, detail="Registro médico no encontrado")
-        
-        # Verificar permisos
-        if current_user.get("role") not in ["doctor", "admin"] and current_user.get("user_id") != record.patient_id:
-            raise HTTPException(status_code=403, detail="No tiene permisos para acceder a este registro")
-        
-        return record
+        return [
+            MedicalRecordResponse(
+                id=record.id,
+                patient_id=record.patient_id,
+                doctor_id=record.doctor_id,
+                appointment_id=record.appointment_id,
+                record_type=record.record_type,
+                version=record.version,
+                clinical_data=record.clinical_data,
+                created_at=record.created_at,
+                status=record.status
+            )
+            for record in records
+        ]
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting medical record: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al obtener registro médico: {str(e)}")
+        logger.error(f"Error getting patient medical history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Medical History Endpoints
-@app.post("/medical-history", status_code=status.HTTP_201_CREATED, tags=["Medical History"])
-async def create_medical_history(
-    history_data: MedicalHistoryCreate,
-    db: Session = Depends(get_db),
+@app.get("/medical-records/{record_id}", response_model=MedicalRecordResponse, tags=["Medical Records"])
+async def get_medical_record(
+    record_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Crear entrada en historial médico"""
+    """Obtener un registro médico específico"""
     try:
-        if current_user.get("role") not in ["doctor", "admin"]:
-            raise HTTPException(status_code=403, detail="No tiene permisos para crear historial médico")
+        record = await medical_service.get_medical_record(record_id)
         
-        history = MedicalHistory(
-            id=str(uuid.uuid4()),
-            patient_id=history_data.patient_id,
-            doctor_id=current_user["user_id"],
-            condition=history_data.condition,
-            diagnosis_date=history_data.diagnosis_date,
-            status=history_data.status,
-            notes=history_data.notes,
-            created_at=datetime.utcnow()
+        if not record:
+            raise HTTPException(status_code=404, detail="Medical record not found")
+        
+        # Verificar permisos
+        if current_user["role"] not in ["doctor", "nurse", "admin"]:
+            if current_user["id"] != record.patient_id:
+                raise HTTPException(status_code=403, detail="Access denied")
+        
+        return MedicalRecordResponse(
+            id=record.id,
+            patient_id=record.patient_id,
+            doctor_id=record.doctor_id,
+            appointment_id=record.appointment_id,
+            record_type=record.record_type,
+            version=record.version,
+            clinical_data=record.clinical_data,
+            created_at=record.created_at,
+            status=record.status
         )
         
-        db.add(history)
-        db.commit()
-        db.refresh(history)
-        
-        logger.info(f"Medical history created: {history.id} for patient: {history.patient_id}")
-        return {"message": "Historial médico creado exitosamente", "id": history.id}
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        db.rollback()
-        logger.error(f"Error creating medical history: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al crear historial médico: {str(e)}")
+        logger.error(f"Error getting medical record: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Prescriptions Endpoints
-@app.post("/prescriptions", status_code=status.HTTP_201_CREATED, tags=["Prescriptions"])
+# =============================================
+# ENDPOINTS DE PRESCRIPCIONES
+# =============================================
+
+@app.post("/prescriptions", response_model=PrescriptionResponse, tags=["Prescriptions"])
 async def create_prescription(
-    prescription_data: PrescriptionCreate,
-    db: Session = Depends(get_db),
+    prescription_request: PrescriptionRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """Crear una nueva receta médica"""
     try:
-        if current_user.get("role") not in ["doctor", "admin"]:
-            raise HTTPException(status_code=403, detail="Solo doctores pueden crear recetas")
+        # Verificar que el registro médico existe y pertenece al doctor
+        record = await medical_service.get_medical_record(prescription_request.medical_record_id)
+        if not record:
+            raise HTTPException(status_code=404, detail="Medical record not found")
         
-        prescription = Prescription(
-            id=str(uuid.uuid4()),
-            patient_id=prescription_data.patient_id,
-            doctor_id=current_user["user_id"],
-            medication_name=prescription_data.medication_name,
-            dosage=prescription_data.dosage,
-            frequency=prescription_data.frequency,
-            duration=prescription_data.duration,
-            instructions=prescription_data.instructions,
-            status="active",
-            created_at=datetime.utcnow()
+        if record.doctor_id != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Convertir medicamentos
+        medications = [
+            Medication(
+                name=med.name,
+                dosage=med.dosage,
+                frequency=med.frequency,
+                duration=med.duration,
+                instructions=med.instructions,
+                quantity=med.quantity
+            )
+            for med in prescription_request.medications
+        ]
+        
+        # Crear prescripción
+        prescription = await prescription_service.create_prescription(
+            medical_record_id=prescription_request.medical_record_id,
+            patient_id=record.patient_id,
+            doctor_id=record.doctor_id,
+            medications=medications,
+            doctor_notes=prescription_request.doctor_notes,
+            generate_pdf=True
         )
         
-        db.add(prescription)
-        db.commit()
-        db.refresh(prescription)
+        return PrescriptionResponse(
+            id=prescription.id,
+            medical_record_id=prescription.medical_record_id,
+            patient_id=prescription.patient_id,
+            doctor_id=prescription.doctor_id,
+            prescription_data=prescription.prescription_data,
+            pdf_url=prescription.pdf_url,
+            status=prescription.status,
+            expires_at=prescription.expires_at,
+            created_at=prescription.created_at
+        )
         
-        logger.info(f"Prescription created: {prescription.id} for patient: {prescription.patient_id}")
-        return {"message": "Receta creada exitosamente", "id": prescription.id}
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        db.rollback()
-        logger.error(f"Error creating prescription: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al crear receta: {str(e)}")
+        logger.error(f"Error creating prescription: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/prescriptions/patient/{patient_id}", tags=["Prescriptions"])
+@app.get("/prescriptions/patient/{patient_id}", response_model=List[PrescriptionResponse], tags=["Prescriptions"])
 async def get_patient_prescriptions(
     patient_id: str,
-    status: Optional[str] = None,
-    db: Session = Depends(get_db),
+    status: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
     current_user: dict = Depends(get_current_user)
 ):
     """Obtener recetas de un paciente"""
     try:
         # Verificar permisos
-        if current_user.get("role") not in ["doctor", "admin"] and current_user.get("user_id") != patient_id:
-            raise HTTPException(status_code=403, detail="No tiene permisos para acceder a estas recetas")
+        if current_user["role"] not in ["doctor", "nurse", "admin"]:
+            if current_user["id"] != patient_id:
+                raise HTTPException(status_code=403, detail="Access denied")
         
-        query = db.query(Prescription).filter(Prescription.patient_id == patient_id)
-        
-        if status:
-            query = query.filter(Prescription.status == status)
-        
-        prescriptions = query.order_by(Prescription.created_at.desc()).all()
-        return prescriptions
-        
-    except Exception as e:
-        logger.error(f"Error getting patient prescriptions: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al obtener recetas: {str(e)}")
-
-# Lab Results Endpoints
-@app.post("/lab-results", status_code=status.HTTP_201_CREATED, tags=["Lab Results"])
-async def create_lab_result(
-    lab_data: LabResultCreate,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Registrar resultado de laboratorio"""
-    try:
-        if current_user.get("role") not in ["doctor", "lab_technician", "admin"]:
-            raise HTTPException(status_code=403, detail="No tiene permisos para registrar resultados de laboratorio")
-        
-        lab_result = LabResult(
-            id=str(uuid.uuid4()),
-            patient_id=lab_data.patient_id,
-            test_name=lab_data.test_name,
-            test_type=lab_data.test_type,
-            result_value=lab_data.result_value,
-            reference_range=lab_data.reference_range,
-            units=lab_data.units,
-            status=lab_data.status,
-            notes=lab_data.notes,
-            performed_by=current_user["user_id"],
-            performed_at=datetime.utcnow()
+        prescriptions = await prescription_service.get_patient_prescriptions(
+            patient_id=patient_id,
+            status=None,  # TODO: Convertir string a enum
+            limit=limit
         )
         
-        db.add(lab_result)
-        db.commit()
-        db.refresh(lab_result)
+        return [
+            PrescriptionResponse(
+                id=prescription.id,
+                medical_record_id=prescription.medical_record_id,
+                patient_id=prescription.patient_id,
+                doctor_id=prescription.doctor_id,
+                prescription_data=prescription.prescription_data,
+                pdf_url=prescription.pdf_url,
+                status=prescription.status,
+                expires_at=prescription.expires_at,
+                created_at=prescription.created_at
+            )
+            for prescription in prescriptions
+        ]
         
-        logger.info(f"Lab result created: {lab_result.id} for patient: {lab_result.patient_id}")
-        return {"message": "Resultado de laboratorio registrado exitosamente", "id": lab_result.id}
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        db.rollback()
-        logger.error(f"Error creating lab result: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al registrar resultado de laboratorio: {str(e)}")
+        logger.error(f"Error getting patient prescriptions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Vital Signs Endpoints
-@app.post("/vital-signs", status_code=status.HTTP_201_CREATED, tags=["Vital Signs"])
-async def record_vital_signs(
-    vital_data: VitalSignsCreate,
-    db: Session = Depends(get_db),
+# =============================================
+# ENDPOINTS DE CALIFICACIONES
+# =============================================
+
+@app.post("/ratings", response_model=RatingResponse, tags=["Ratings"])
+async def submit_rating(
+    rating_request: RatingRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Registrar signos vitales"""
+    """Enviar calificación de un doctor"""
     try:
-        if current_user.get("role") not in ["doctor", "nurse", "admin"]:
-            raise HTTPException(status_code=403, detail="No tiene permisos para registrar signos vitales")
+        # Verificar que el usuario es un paciente
+        if current_user["role"] != "patient":
+            raise HTTPException(status_code=403, detail="Only patients can submit ratings")
         
-        vital_signs = VitalSigns(
-            id=str(uuid.uuid4()),
-            patient_id=vital_data.patient_id,
-            appointment_id=vital_data.appointment_id,
-            blood_pressure_systolic=vital_data.blood_pressure_systolic,
-            blood_pressure_diastolic=vital_data.blood_pressure_diastolic,
-            heart_rate=vital_data.heart_rate,
-            temperature=vital_data.temperature,
-            respiratory_rate=vital_data.respiratory_rate,
-            oxygen_saturation=vital_data.oxygen_saturation,
-            weight=vital_data.weight,
-            height=vital_data.height,
-            recorded_by=current_user["user_id"],
-            recorded_at=datetime.utcnow()
+        rating = await rating_service.submit_rating(
+            doctor_id=rating_request.doctor_id,
+            patient_id=current_user["id"],
+            appointment_id=rating_request.appointment_id,
+            rating=rating_request.rating,
+            comment=rating_request.comment,
+            categories=rating_request.categories
         )
         
-        db.add(vital_signs)
-        db.commit()
-        db.refresh(vital_signs)
+        return RatingResponse(
+            id=rating.id,
+            doctor_id=rating.doctor_id,
+            patient_id=rating.patient_id,
+            appointment_id=rating.appointment_id,
+            rating=rating.rating,
+            comment=rating.comment,
+            categories=rating.categories,
+            created_at=rating.created_at,
+            is_verified=rating.is_verified
+        )
         
-        logger.info(f"Vital signs recorded: {vital_signs.id} for patient: {vital_signs.patient_id}")
-        return {"message": "Signos vitales registrados exitosamente", "id": vital_signs.id}
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        db.rollback()
-        logger.error(f"Error recording vital signs: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al registrar signos vitales: {str(e)}")
+        logger.error(f"Error submitting rating: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/vital-signs/patient/{patient_id}", tags=["Vital Signs"])
-async def get_patient_vital_signs(
-    patient_id: str,
-    limit: int = 10,
-    db: Session = Depends(get_db),
+@app.get("/ratings/doctor/{doctor_id}", response_model=List[RatingResponse], tags=["Ratings"])
+async def get_doctor_ratings(
+    doctor_id: str,
+    limit: int = Query(50, ge=1, le=100),
+    verified_only: bool = Query(True),
     current_user: dict = Depends(get_current_user)
 ):
-    """Obtener signos vitales de un paciente"""
+    """Obtener calificaciones de un doctor"""
     try:
-        # Verificar permisos
-        if current_user.get("role") not in ["doctor", "nurse", "admin"] and current_user.get("user_id") != patient_id:
-            raise HTTPException(status_code=403, detail="No tiene permisos para acceder a estos signos vitales")
+        ratings = await rating_service.get_doctor_ratings(
+            doctor_id=doctor_id,
+            limit=limit,
+            verified_only=verified_only
+        )
         
-        vital_signs = db.query(VitalSigns).filter(
-            VitalSigns.patient_id == patient_id
-        ).order_by(VitalSigns.recorded_at.desc()).limit(limit).all()
-        
-        return vital_signs
+        return [
+            RatingResponse(
+                id=rating.id,
+                doctor_id=rating.doctor_id,
+                patient_id=rating.patient_id,
+                appointment_id=rating.appointment_id,
+                rating=rating.rating,
+                comment=rating.comment,
+                categories=rating.categories,
+                created_at=rating.created_at,
+                is_verified=rating.is_verified
+            )
+            for rating in ratings
+        ]
         
     except Exception as e:
-        logger.error(f"Error getting patient vital signs: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al obtener signos vitales: {str(e)}")
+        logger.error(f"Error getting doctor ratings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Health Check
+@app.get("/ratings/doctor/{doctor_id}/aggregate", response_model=RatingAggregateResponse, tags=["Ratings"])
+async def get_doctor_rating_aggregate(
+    doctor_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtener agregaciones de calificaciones de un doctor"""
+    try:
+        aggregate = await rating_service.get_doctor_rating_aggregate(doctor_id)
+        
+        if not aggregate:
+            raise HTTPException(status_code=404, detail="No ratings found for this doctor")
+        
+        return RatingAggregateResponse(
+            doctor_id=aggregate.doctor_id,
+            total_ratings=aggregate.total_ratings,
+            average_rating=aggregate.average_rating,
+            rating_distribution=aggregate.rating_distribution,
+            category_averages=aggregate.category_averages,
+            confidence_score=aggregate.confidence_score,
+            last_updated=aggregate.last_updated
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting doctor rating aggregate: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ratings/top-doctors", response_model=List[Dict[str, Any]], tags=["Ratings"])
+async def get_top_rated_doctors(
+    specialty: Optional[str] = Query(None),
+    min_ratings: int = Query(5, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtener doctores mejor calificados"""
+    try:
+        doctors = await rating_service.get_top_rated_doctors(
+            specialty=specialty,
+            min_ratings=min_ratings,
+            limit=limit
+        )
+        
+        return doctors
+        
+    except Exception as e:
+        logger.error(f"Error getting top rated doctors: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =============================================
+# ENDPOINTS DE ESTADÍSTICAS
+# =============================================
+
+@app.get("/stats/ratings", response_model=Dict[str, Any], tags=["Statistics"])
+async def get_rating_statistics(current_user: dict = Depends(get_current_user)):
+    """Obtener estadísticas generales de calificaciones"""
+    try:
+        # Verificar permisos de admin
+        if current_user["role"] not in ["admin", "doctor"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        stats = await rating_service.get_rating_statistics()
+        return stats
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rating statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =============================================
+# HEALTH CHECK
+# =============================================
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "service": "medical-records-service",
-        "version": "1.0.0",
+        "service": "medical-records",
         "timestamp": datetime.utcnow().isoformat()
-    }
-
-# Metrics endpoint for Prometheus
-@app.get("/metrics", tags=["Metrics"])
-async def metrics():
-    """Prometheus metrics endpoint"""
-    from shared.metrics import get_metrics_response
-    return get_metrics_response()
-
-@app.get("/", tags=["Root"])
-async def root():
-    """Root endpoint"""
-    return {
-        "message": "SMD Vital Medical Records Service",
-        "docs": "/docs",
-        "health": "/health"
-    }
-
-@app.get("/info", tags=["Info"])
-async def service_info():
-    """Service information"""
-    return {
-        "service": "medical-records-service",
-        "description": "Medical records and health data management service",
-        "endpoints": {
-            "health": "/health",
-            "docs": "/docs",
-            "info": "/info"
-        },
-        "database": "smdvital_medical_records",
-        "port": 8005
     }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8005,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8003)

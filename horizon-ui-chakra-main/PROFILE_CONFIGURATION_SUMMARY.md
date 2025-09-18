@@ -159,3 +159,4 @@ La configuración de perfil ahora trae correctamente los datos del backend (nomb
 **¡La configuración de perfil ahora está completamente integrada con el backend!** 🎉
 
 **Los usuarios pueden ver y editar su información personal y preferencias de notificación desde el modal del navbar o la página dedicada.**
+

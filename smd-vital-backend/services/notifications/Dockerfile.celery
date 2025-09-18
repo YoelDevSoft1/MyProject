@@ -1,43 +1,48 @@
-# Celery Worker Dockerfile
-FROM python:3.11-slim
+# Dockerfile for Celery Worker
+# ============================
 
-# Set work directory
-WORKDIR /app
+FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
+ENV CELERY_BROKER_URL=amqp://smdvital:password@rabbitmq:5672/smdvital
+ENV CELERY_RESULT_BACKEND=redis://redis:6379/3
+
+# Set work directory
+WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        gcc \
+        build-essential \
         libpq-dev \
         curl \
-        netcat-traditional \
-        procps \
-    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
-
 # Install Python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
+
+# Install additional Celery dependencies
+RUN pip install --no-cache-dir \
+    celery[redis]==5.3.4 \
+    marshmallow==3.20.1 \
+    cryptography==41.0.7 \
+    requests==2.31.0
 
 # Copy project
 COPY . .
 
-# Create non-root user
+# Create app user
 RUN adduser --disabled-password --gecos '' appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
-# Health check for Celery Worker (check if process is running)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD pgrep -f "celery.*worker" || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD celery -A app.celery inspect ping || exit 1
 
-# Run the application
+# Default command
 CMD ["celery", "-A", "app.celery", "worker", "--loglevel=info", "--concurrency=4"]

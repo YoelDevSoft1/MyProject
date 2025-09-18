@@ -197,3 +197,4 @@ export const smdVitalBogotaConfig = {
 
 export default smdVitalBogotaConfig;
 
+

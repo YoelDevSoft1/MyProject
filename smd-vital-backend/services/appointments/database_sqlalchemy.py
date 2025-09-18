@@ -119,8 +119,8 @@ class AppointmentDatabase:
         await self.init_engine()
         
         async with self.async_session() as session:
-            # Generar número de cita
-            appointment_number = f"APT-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+            # Usar el número de cita que viene en los datos o generar uno si no existe
+            appointment_number = appointment_data.get("appointment_number", f"APT-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}")
             
             # Crear objeto de cita
             appointment = Appointment(

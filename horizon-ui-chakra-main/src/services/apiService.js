@@ -101,7 +101,15 @@ class ApiService {
 
   // Método genérico para hacer peticiones
   async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
+    let url = `${this.baseURL}${endpoint}`;
+    
+    // Manejar parámetros de query
+    if (options.params) {
+      const queryString = new URLSearchParams(options.params).toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+    }
     
     // Configuración base
     let config = {
@@ -112,6 +120,9 @@ class ApiService {
       },
       ...options,
     };
+    
+    // Eliminar params del config ya que se procesaron en la URL
+    delete config.params;
 
     // Eliminar body si no se especifica (especialmente para GET/HEAD)
     if (['GET', 'HEAD'].includes(options.method?.toUpperCase()) && config.body) {

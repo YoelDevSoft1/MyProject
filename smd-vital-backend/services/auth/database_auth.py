@@ -186,14 +186,25 @@ class DatabaseAuth:
                     WHERE email = $1 AND is_active = true
                 """, email.lower())
 
+                logger.info(f"User found: {user is not None}")
+                if user:
+                    logger.info(f"User email: {user['email']}")
+                    logger.info(f"User password_hash: {user['password_hash'][:20]}...")
+                    logger.info(f"Password provided: {password}")
+
                 if not user:
+                    logger.warning(f"No user found for email: {email}")
                     return None
 
                 if not user['password_hash']:
-                    # Usuario sin contraseña (ej. Google OAuth)
+                    logger.warning(f"User {email} has no password hash")
                     return None
 
-                if not self.verify_password(password, user['password_hash']):
+                password_valid = self.verify_password(password, user['password_hash'])
+                logger.info(f"Password verification result: {password_valid}")
+                
+                if not password_valid:
+                    logger.warning(f"Password verification failed for user: {email}")
                     return None
 
                 # Actualizar último login

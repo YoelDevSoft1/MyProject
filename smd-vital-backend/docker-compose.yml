@@ -1,6 +1,7 @@
 # SMD Vital Backend - Docker Compose
 # ==================================
-
+# Configuración adicional para docker-compose.yml
+version: '3.8'
 
 services:
   # PostgreSQL Database
@@ -18,7 +19,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U smdvital -d smdvital"]
@@ -26,31 +27,38 @@ services:
       timeout: 10s
       retries: 5
 
-  # Redis Cache & Session Store
+  # Redis con configuración optimizada
   redis:
     image: redis:7-alpine
+    command: redis-server /usr/local/etc/redis/redis.conf
     container_name: smd_vital_redis
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes --requirepass redis_password_2024
     volumes:
       - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "redis_password_2024", "ping"]
       interval: 30s
       timeout: 10s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
-  # RabbitMQ Message Broker
+  # RabbitMQ con configuración de producción
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:3.12-management-alpine
     container_name: smd_vital_rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: smdvital
-      RABBITMQ_DEFAULT_PASS: rabbitmq_password_2024
+      RABBITMQ_DEFAULT_PASS: password
       RABBITMQ_DEFAULT_VHOST: smdvital
     ports:
       - "5672:5672"   # AMQP port
@@ -58,7 +66,7 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
@@ -66,22 +74,31 @@ services:
       timeout: 10s
       retries: 5
 
-  # API Gateway (Nginx)
+  # Configuración mejorada de Nginx
   nginx:
     image: nginx:alpine
     container_name: smd_vital_nginx
     ports:
       - "8000:80"
+      - "8443:443"
     volumes:
-      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./config/nginx.conf:/etc/nginx/nginx.conf
+      - ./config/nginx/sites-enabled:/etc/nginx/sites-enabled
+      - ./ssl:/etc/nginx/ssl
     depends_on:
       - auth-service
       - user-service
       - appointment-service
+      - notification-service
+      - medical-records-service
+      - payment-service
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   # Authentication Service
   auth-service:
@@ -106,7 +123,7 @@ services:
       - ./services/auth:/app
       - ./shared:/app/shared
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -139,7 +156,7 @@ services:
       - ./services/users:/app
       - ./shared:/app/shared
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
   # Appointment Service
@@ -173,7 +190,7 @@ services:
       - ./services/appointments:/app
       - ./shared:/app/shared
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
   # Notification Service
@@ -208,7 +225,7 @@ services:
       - ./services/notifications:/app
       - ./shared:/app/shared
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
   # Medical Records Service
@@ -238,7 +255,7 @@ services:
       - ./shared:/app/shared
       - medical_files:/app/uploads
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
   # Payment Service
@@ -271,89 +288,107 @@ services:
       - ./services/payments:/app
       - ./shared:/app/shared
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
-  # Celery Worker (Background Tasks)
+  # Celery Worker con configuración de microservicios
   celery-worker:
-    build:
+    build: 
       context: ./services/notifications
       dockerfile: Dockerfile.celery
-    container_name: smd_vital_celery_worker
     environment:
-      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_notifications
-      - REDIS_URL=redis://:redis_password_2024@redis:6379/3
-      - RABBITMQ_URL=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital
-      - SMTP_HOST=smtp.gmail.com
-      - SMTP_PORT=587
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - ENVIRONMENT=development
-      - DEBUG=true
+      - CELERY_BROKER_URL=amqp://smdvital:password@rabbitmq:5672/smdvital
+      - CELERY_RESULT_BACKEND=redis://redis:6379/3
+      - DATABASE_URL=postgresql://smdvital:password@postgres:5432/smdvital
+      
+      # Service Discovery
+      - USER_SERVICE_URL=http://user-service:8002
+      - APPOINTMENT_SERVICE_URL=http://appointment-service:8003
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8004
+      - MEDICAL_RECORDS_SERVICE_URL=http://medical-records-service:8005
+      - PAYMENT_SERVICE_URL=http://payment-service:8006
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      
+      # Observabilidad
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - PROMETHEUS_GATEWAY=http://prometheus:9090
+      
+      # Logging
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - LOG_LEVEL=INFO
+      
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      - postgres
+      - redis
+      - rabbitmq
+      - user-service
+      - notification-service
+      - appointment-service
+      - jaeger
+      - elasticsearch
+    networks:
+      - smd-vital-network
     volumes:
       - ./services/notifications:/app
       - ./shared:/app/shared
-    networks:
-      - smd_network
+      - ./logs:/app/logs
     restart: unless-stopped
+    deploy:
+      replicas: 3  # Múltiples workers para alta disponibilidad
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
-  # Celery Beat (Scheduled Tasks)
+  # Celery Beat con alta disponibilidad
   celery-beat:
-    build:
+    build: 
       context: ./services/notifications
-      dockerfile: Dockerfile.beat
+      dockerfile: Dockerfile.celery-beat
     container_name: smd_vital_celery_beat
-    command: celery -A app.celery beat --loglevel=info --scheduler celery.beat:PersistentScheduler
     environment:
-      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_notifications
-      - REDIS_URL=redis://:redis_password_2024@redis:6379/3
-      - RABBITMQ_URL=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital
-      - ENVIRONMENT=development
-      - DEBUG=true
+      - CELERY_BROKER_URL=amqp://smdvital:password@rabbitmq:5672/smdvital
+      - CELERY_RESULT_BACKEND=redis://redis:6379/3
+      - DATABASE_URL=postgresql://smdvital:password@postgres:5432/smdvital
+      - BEAT_SCHEDULE_FILE=/app/celerybeat-schedule
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - smd-vital-network
     volumes:
       - ./services/notifications:/app
       - ./shared:/app/shared
-    networks:
-      - smd_network
     restart: unless-stopped
+    deploy:
+      replicas: 1  # Solo una instancia para evitar tareas duplicadas
+      placement:
+        constraints: [node.role == manager]
 
-  # Flower (Celery Monitoring)
+  # Flower con autenticación
   flower:
-    build:
+    build: 
       context: ./services/notifications
       dockerfile: Dockerfile.flower
     container_name: smd_vital_flower
     environment:
-      - REDIS_URL=redis://:redis_password_2024@redis:6379/3
-      - RABBITMQ_URL=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital
+      - CELERY_BROKER_URL=amqp://smdvital:password@rabbitmq:5672/smdvital
+      - CELERY_RESULT_BACKEND=redis://redis:6379/3
     ports:
       - "5555:5555"
     depends_on:
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      - redis
+      - rabbitmq
+    networks:
+      - smd-vital-network
     volumes:
       - ./services/notifications:/app
-    networks:
-      - smd_network
     restart: unless-stopped
 
-  # Prometheus (Metrics)
+  # Prometheus con configuración para microservicios
   prometheus:
     image: prom/prometheus:latest
     container_name: smd_vital_prometheus
@@ -369,16 +404,23 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 
   # Grafana (Dashboards)
   grafana:
     image: grafana/grafana:latest
     container_name: smd_vital_grafana
     ports:
-      - "3000:3000"
+      - "3005:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=
@@ -391,7 +433,7 @@ services:
     depends_on:
       - prometheus
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
   # Jaeger (Distributed Tracing)
@@ -404,7 +446,7 @@ services:
     environment:
       - COLLECTOR_ZIPKIN_HTTP_PORT=9411
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
   # Elasticsearch (Logging)
@@ -427,7 +469,7 @@ services:
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
   # Kibana (Log Visualization)
@@ -441,7 +483,7 @@ services:
     depends_on:
       - elasticsearch
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
   # Logstash (Log Processing)
@@ -453,16 +495,16 @@ services:
     depends_on:
       - elasticsearch
     networks:
-      - smd_network
+      - smd-vital-network
     restart: unless-stopped
 
 # Networks
 networks:
-  smd_network:
+  smd-vital-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 172.25.0.0/16
 
 # Volumes
 volumes:
@@ -479,4 +521,6 @@ volumes:
   elasticsearch_data:
     driver: local
   medical_files:
+    driver: local
+  celery-beat-schedule:
     driver: local

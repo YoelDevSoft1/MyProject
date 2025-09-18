@@ -54,10 +54,15 @@ import {
 } from "react-icons/md";
 import { useAuth } from "contexts/AuthContext";
 import apiService from "services/apiService";
+import IntelligentAppointmentBooking from "components/IntelligentAppointmentBooking";
+import UserDetectionInfo from "components/UserDetectionInfo";
+import MedicalConsultationModal from "components/MedicalConsultationModal";
+import PrescriptionViewer from "components/PrescriptionViewer";
+import RatingSystem from "components/RatingSystem";
 
 export default function Appointments() {
   // Auth context
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, userDetection, detectUserType } = useAuth();
   
   // State for appointments data
   const [appointmentsData, setAppointmentsData] = useState({
@@ -78,6 +83,12 @@ export default function Appointments() {
   // Modals
   const { isOpen: isDetailsOpen, onOpen: onDetailsOpen, onClose: onDetailsClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const { isOpen: isBookingOpen, onOpen: onBookingOpen, onClose: onBookingClose } = useDisclosure();
+  const { isOpen: isConsultationOpen, onOpen: onConsultationOpen, onClose: onConsultationClose } = useDisclosure();
+  const { isOpen: isPrescriptionOpen, onOpen: onPrescriptionOpen, onClose: onPrescriptionClose } = useDisclosure();
+  
+  // Estados adicionales para consulta médica
+  const [selectedPatient, setSelectedPatient] = useState(null);
   
   // Toast
   const toast = useToast();
@@ -182,7 +193,12 @@ export default function Appointments() {
   useEffect(() => {
     loadAppointments();
     loadStats();
-  }, [loadAppointments, loadStats]);
+    
+    // Detectar tipo de usuario si no está disponible
+    if (!userDetection) {
+      detectUserType();
+    }
+  }, [loadAppointments, loadStats, userDetection, detectUserType]);
 
   const handlePageChange = (newPage) => {
     loadAppointments(newPage, appointmentsData.pagination.size);
@@ -195,8 +211,48 @@ export default function Appointments() {
 
   const handleCreateAppointment = () => {
     setSelectedAppointment(null);
-    // TODO: Implementar modal de creación
-    alert("Función de creación de cita en desarrollo");
+    onBookingOpen();
+  };
+
+  const handleBookingSuccess = (appointmentData) => {
+    // Recargar datos después de crear cita
+    loadAppointments();
+    loadStats();
+    onBookingClose();
+  };
+
+  // Funciones para consulta médica
+  const handleStartConsultation = (appointment) => {
+    setSelectedAppointment(appointment);
+    setSelectedPatient(appointment.patient);
+    onConsultationOpen();
+  };
+
+  const handleConsultationSuccess = (medicalRecord) => {
+    toast({
+      title: "Consulta registrada",
+      description: "La consulta médica se ha registrado exitosamente",
+      status: "success",
+      duration: 5000,
+      isClosable: true,
+    });
+    loadAppointments();
+    onConsultationClose();
+  };
+
+  const handleViewPrescriptions = (appointment) => {
+    setSelectedPatient(appointment.patient);
+    onPrescriptionOpen();
+  };
+
+  const handleRatingSubmitted = (rating) => {
+    toast({
+      title: "Calificación enviada",
+      description: "Gracias por tu calificación",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
   };
 
   const handleDeleteAppointment = (appointment) => {
@@ -271,20 +327,38 @@ export default function Appointments() {
           gap={4}
         >
           <VStack align={{ base: "center", md: "start" }} spacing={2}>
-            <Text 
-              fontSize={{ base: "2xl", md: "3xl" }} 
-              fontWeight="bold" 
-              color={textColor}
-              textAlign={{ base: "center", md: "left" }}
-            >
-              Gestión de Citas Médicas
-            </Text>
+            <HStack spacing={3}>
+              <Text 
+                fontSize={{ base: "2xl", md: "3xl" }} 
+                fontWeight="bold" 
+                color={textColor}
+                textAlign={{ base: "center", md: "left" }}
+              >
+                Gestión de Citas Médicas
+              </Text>
+              {userDetection && (
+                <Badge 
+                  colorScheme={userDetection.detection?.confidence > 0.7 ? "green" : "yellow"} 
+                  variant="subtle"
+                  fontSize="xs"
+                >
+                  {userDetection.detection?.detected_type || 'usuario'}
+                </Badge>
+              )}
+            </HStack>
             <Text 
               color={textColorSecondary} 
               fontSize={{ base: "sm", md: "md" }}
               textAlign={{ base: "center", md: "left" }}
             >
-              Administra las citas médicas del sistema SMD VITAL
+              {userDetection?.detection?.detected_type === 'patient' 
+                ? "Gestiona tus citas médicas y agenda nuevas consultas"
+                : userDetection?.detection?.detected_type === 'doctor'
+                ? "Administra tu agenda médica y atiende a tus pacientes"
+                : userDetection?.detection?.detected_type === 'nurse'
+                ? "Gestiona las citas asignadas y asiste a los doctores"
+                : "Administra las citas médicas del sistema SMD VITAL"
+              }
             </Text>
           </VStack>
           <Button
@@ -297,6 +371,13 @@ export default function Appointments() {
             Nueva Cita
           </Button>
         </Flex>
+
+        {/* User Detection Info */}
+        {userDetection && (
+          <Box mb={4}>
+            <UserDetectionInfo userDetection={userDetection} />
+          </Box>
+        )}
 
         {/* Stats Cards */}
         <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap={4}>
@@ -497,6 +578,41 @@ export default function Appointments() {
                                 onClick={() => handleDeleteAppointment(appointment)}
                               />
                             </Tooltip>
+                            {appointment.status === 'confirmed' && userDetection?.detection?.detected_type === 'doctor' && (
+                              <Tooltip label="Iniciar Consulta">
+                                <IconButton
+                                  aria-label="Iniciar Consulta"
+                                  icon={<MdAdd />}
+                                  size={{ base: "xs", md: "sm" }}
+                                  colorScheme="green"
+                                  onClick={() => handleStartConsultation(appointment)}
+                                />
+                              </Tooltip>
+                            )}
+                            {appointment.status === 'completed' && (
+                              <>
+                                <Tooltip label="Ver Recetas">
+                                  <IconButton
+                                    aria-label="Ver Recetas"
+                                    icon={<MdDownload />}
+                                    size={{ base: "xs", md: "sm" }}
+                                    colorScheme="blue"
+                                    onClick={() => handleViewPrescriptions(appointment)}
+                                  />
+                                </Tooltip>
+                                {userDetection?.detection?.detected_type === 'patient' && (
+                                  <Tooltip label="Calificar Doctor">
+                                    <IconButton
+                                      aria-label="Calificar Doctor"
+                                      icon={<MdVisibility />}
+                                      size={{ base: "xs", md: "sm" }}
+                                      colorScheme="yellow"
+                                      onClick={() => {/* Implementar calificación */}}
+                                    />
+                                  </Tooltip>
+                                )}
+                              </>
+                            )}
                           </HStack>
                         </Td>
                       </Tr>
@@ -719,6 +835,51 @@ export default function Appointments() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Intelligent Appointment Booking Modal */}
+      <IntelligentAppointmentBooking
+        isOpen={isBookingOpen}
+        onClose={onBookingClose}
+        onSuccess={handleBookingSuccess}
+      />
+
+      {/* Modal de Consulta Médica */}
+      <MedicalConsultationModal
+        isOpen={isConsultationOpen}
+        onClose={onConsultationClose}
+        appointment={selectedAppointment}
+        onSuccess={handleConsultationSuccess}
+      />
+
+      {/* Modal de Visualización de Recetas */}
+      <Modal isOpen={isPrescriptionOpen} onClose={onPrescriptionClose} size="6xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <Text>Recetas Médicas</Text>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            {selectedPatient && (
+              <PrescriptionViewer
+                patientId={selectedPatient.id}
+                showAll={true}
+                limit={20}
+              />
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* Sistema de Calificaciones */}
+      {selectedAppointment && userDetection?.detection?.detected_type === 'patient' && (
+        <RatingSystem
+          doctorId={selectedAppointment.doctor_id}
+          appointmentId={selectedAppointment.id}
+          onRatingSubmitted={handleRatingSubmitted}
+          showStats={true}
+        />
+      )}
     </Box>
   );
 }

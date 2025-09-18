@@ -164,3 +164,4 @@ localStorage.clear();
 ---
 
 **Nota**: Esta solución aborda directamente el problema de datos `undefined` del backend. Los logs detallados ayudarán a identificar la causa exacta del problema en cada caso específico.
+

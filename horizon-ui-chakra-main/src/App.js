@@ -49,6 +49,9 @@ export default function Main() {
             }
           />
           
+          {/* Redirecciones para compatibilidad */}
+          <Route path="/login" element={<Navigate to="/auth/sign-in" replace />} />
+          
           {/* Ruta raíz - redirige según el estado de autenticación */}
           <Route path="/" element={<Navigate to="/auth/sign-in" replace />} />
         </Routes>

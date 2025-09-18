@@ -166,3 +166,4 @@ curl http://localhost:8000/health
 ---
 
 **Nota**: Esta solución resuelve tanto el problema de visualización de usuario como el problema de conexión a base de datos que lo causaba. El sistema ahora maneja correctamente los datos de usuario y proporciona fallbacks inteligentes cuando los datos no están disponibles.
+

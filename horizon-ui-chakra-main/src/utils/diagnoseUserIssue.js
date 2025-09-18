@@ -278,3 +278,4 @@ class UserIssueDiagnostic {
 const userIssueDiagnostic = new UserIssueDiagnostic();
 
 export default userIssueDiagnostic;
+

@@ -148,3 +148,4 @@ appointments && appointments.map((appointment) => ...)`}
     </Box>
   );
 }
+
