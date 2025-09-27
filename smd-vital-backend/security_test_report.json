@@ -1,0 +1,247 @@
+{
+  "timestamp": "2025-09-25T16:58:01.719034",
+  "tests": [
+    {
+      "endpoint": "Auth Service - Register",
+      "test_case": "Datos válidos",
+      "status": "failed",
+      "status_code": 400,
+      "response_time": 0.5630044937133789,
+      "response_data": {
+        "detail": "El email ya está registrado"
+      },
+      "error": "Expected [200, 201, 409], got 400"
+    },
+    {
+      "endpoint": "Auth Service - Register",
+      "test_case": "Email inválido",
+      "status": "passed",
+      "status_code": 422,
+      "response_time": 0.01757049560546875,
+      "response_data": {
+        "detail": [
+          {
+            "type": "value_error",
+            "loc": [
+              "body",
+              "email"
+            ],
+            "msg": "value is not a valid email address: An email address must have an @-sign.",
+            "input": "invalid-email",
+            "ctx": {
+              "reason": "An email address must have an @-sign."
+            }
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "endpoint": "Auth Service - Register",
+      "test_case": "Contraseña débil",
+      "status": "passed",
+      "status_code": 422,
+      "response_time": 0.01964545249938965,
+      "response_data": {
+        "detail": [
+          {
+            "type": "value_error",
+            "loc": [
+              "body",
+              "password"
+            ],
+            "msg": "Value error, La contraseña debe tener al menos 8 caracteres",
+            "input": "123",
+            "ctx": {
+              "error": {}
+            }
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "endpoint": "Auth Service - Register",
+      "test_case": "Datos vacíos",
+      "status": "passed",
+      "status_code": 422,
+      "response_time": 0.011837244033813477,
+      "response_data": {
+        "detail": [
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "email"
+            ],
+            "msg": "Field required",
+            "input": {}
+          },
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "password"
+            ],
+            "msg": "Field required",
+            "input": {}
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "endpoint": "Auth Service - Register",
+      "test_case": "SQL Injection",
+      "status": "passed",
+      "status_code": 422,
+      "response_time": 0.022114992141723633,
+      "response_data": {
+        "detail": [
+          {
+            "type": "value_error",
+            "loc": [
+              "body",
+              "email"
+            ],
+            "msg": "value is not a valid email address: The part after the @-sign contains invalid characters: \"'\", ';', SPACE.",
+            "input": "test@example.com'; DROP TABLE users; --",
+            "ctx": {
+              "reason": "The part after the @-sign contains invalid characters: \"'\", ';', SPACE."
+            }
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "endpoint": "Auth Service - Login",
+      "test_case": "Credenciales válidas",
+      "status": "failed",
+      "status_code": 422,
+      "response_time": 0.028905153274536133,
+      "response_data": {
+        "detail": [
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "username"
+            ],
+            "msg": "Field required",
+            "input": null
+          },
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "password"
+            ],
+            "msg": "Field required",
+            "input": null
+          }
+        ]
+      },
+      "error": "Expected [200], got 422"
+    },
+    {
+      "endpoint": "Auth Service - Login",
+      "test_case": "Credenciales inválidas",
+      "status": "passed",
+      "status_code": 422,
+      "response_time": 0.020457983016967773,
+      "response_data": {
+        "detail": [
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "username"
+            ],
+            "msg": "Field required",
+            "input": null
+          },
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "password"
+            ],
+            "msg": "Field required",
+            "input": null
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "endpoint": "Auth Service - Login",
+      "test_case": "Usuario inexistente",
+      "status": "passed",
+      "status_code": 422,
+      "response_time": 0.04247307777404785,
+      "response_data": {
+        "detail": [
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "username"
+            ],
+            "msg": "Field required",
+            "input": null
+          },
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "password"
+            ],
+            "msg": "Field required",
+            "input": null
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "endpoint": "Auth Service - Login",
+      "test_case": "Datos vacíos",
+      "status": "passed",
+      "status_code": 422,
+      "response_time": 0.013452529907226562,
+      "response_data": {
+        "detail": [
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "username"
+            ],
+            "msg": "Field required",
+            "input": null
+          },
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "password"
+            ],
+            "msg": "Field required",
+            "input": null
+          }
+        ]
+      },
+      "error": null
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "passed": 7,
+    "failed": 2,
+    "errors": [
+      "Auth Service - Register - Datos válidos: Expected [200, 201, 409], got 400",
+      "Auth Service - Login - Credenciales válidas: Expected [200], got 422"
+    ]
+  }
+}

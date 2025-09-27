@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -21,27 +22,60 @@ from database_sqlalchemy import DatabaseManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Inicializar FastAPI
-app = FastAPI(
-    title="SMD VITAL Medical Records Service",
-    description="Servicio para manejo de registros médicos, prescripciones y calificaciones",
-    version="1.0.0"
-)
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3001", "http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Inicializar servicios
 db_manager = None
 medical_service = None
 prescription_service = None
 rating_service = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manejar eventos de inicio y cierre de la aplicación"""
+    global db_manager, medical_service, prescription_service, rating_service
+    
+    # Startup
+    try:
+        # Inicializar base de datos
+        db_manager = DatabaseManager()
+        await db_manager.init_engine()
+        
+        # Inicializar servicios
+        medical_service = MedicalRecordService(db_manager)
+        prescription_service = PrescriptionService(db_manager)
+        rating_service = RatingService(db_manager)
+        
+        logger.info("Medical Records Service initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Error initializing Medical Records Service: {e}")
+        raise
+    
+    yield
+    
+    # Shutdown
+    if db_manager:
+        await db_manager.close()
+        logger.info("Database connections closed")
+
+# Inicializar FastAPI
+app = FastAPI(
+    title="SMD VITAL Medical Records Service",
+    description="Servicio para manejo de registros médicos, prescripciones y calificaciones",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# ===== CONFIGURACIÓN CORS =====
+# CORS deshabilitado en el servicio - Nginx se encarga de CORS
+# Esto evita headers duplicados que causan errores CORS
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+#     allow_headers=["*"],
+# )
 
 # =============================================
 # MODELOS PYDANTIC
@@ -133,36 +167,8 @@ async def get_current_user():
     }
 
 # =============================================
-# STARTUP Y SHUTDOWN
+# STARTUP Y SHUTDOWN (manejado por lifespan)
 # =============================================
-
-@app.on_event("startup")
-async def startup_event():
-    """Inicializar servicios al arrancar"""
-    global db_manager, medical_service, prescription_service, rating_service
-    
-    try:
-        # Inicializar base de datos
-        db_manager = DatabaseManager()
-        await db_manager.init_engine()
-        
-        # Inicializar servicios
-        medical_service = MedicalRecordService(db_manager)
-        prescription_service = PrescriptionService(db_manager)
-        rating_service = RatingService(db_manager)
-        
-        logger.info("Medical Records Service initialized successfully")
-        
-    except Exception as e:
-        logger.error(f"Error initializing Medical Records Service: {e}")
-        raise
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cerrar conexiones al apagar"""
-    if db_manager:
-        await db_manager.close()
-    logger.info("Medical Records Service shutdown")
 
 # =============================================
 # ENDPOINTS DE REGISTROS MÉDICOS
@@ -547,8 +553,261 @@ async def get_rating_statistics(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 # =============================================
+# ENDPOINTS DE SIGNOS VITALES
+# =============================================
+
+@app.post("/vital-signs", response_model=Dict[str, Any], tags=["Vital Signs"])
+async def record_vital_signs(
+    patient_id: str,
+    vital_signs_data: Dict[str, Any],
+    current_user: dict = Depends(get_current_user)
+):
+    """Registrar signos vitales de un paciente"""
+    try:
+        # Verificar permisos
+        if current_user["role"] not in ["doctor", "nurse", "admin"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Validar datos de signos vitales
+        required_fields = ["systolic_bp", "diastolic_bp", "heart_rate", "temperature_celsius"]
+        for field in required_fields:
+            if field not in vital_signs_data:
+                raise HTTPException(status_code=400, detail=f"Campo requerido: {field}")
+        
+        # Crear registro de signos vitales
+        vital_signs_record = {
+            "id": str(uuid.uuid4()),
+            "patient_id": patient_id,
+            "medical_record_id": vital_signs_data.get("medical_record_id"),
+            "measured_at": datetime.utcnow().isoformat(),
+            "systolic_bp": vital_signs_data.get("systolic_bp"),
+            "diastolic_bp": vital_signs_data.get("diastolic_bp"),
+            "heart_rate": vital_signs_data.get("heart_rate"),
+            "respiratory_rate": vital_signs_data.get("respiratory_rate"),
+            "temperature_celsius": vital_signs_data.get("temperature_celsius"),
+            "oxygen_saturation": vital_signs_data.get("oxygen_saturation"),
+            "height_cm": vital_signs_data.get("height_cm"),
+            "weight_kg": vital_signs_data.get("weight_kg"),
+            "glucose_level": vital_signs_data.get("glucose_level"),
+            "pain_scale": vital_signs_data.get("pain_scale"),
+            "position": vital_signs_data.get("position"),
+            "activity_level": vital_signs_data.get("activity_level"),
+            "notes": vital_signs_data.get("notes"),
+            "measurement_method": vital_signs_data.get("measurement_method"),
+            "device_used": vital_signs_data.get("device_used"),
+            "recorded_by": current_user["id"],
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        # Calcular BMI si se proporcionan altura y peso
+        if vital_signs_data.get("height_cm") and vital_signs_data.get("weight_kg"):
+            height_m = vital_signs_data["height_cm"] / 100
+            bmi = vital_signs_data["weight_kg"] / (height_m ** 2)
+            vital_signs_record["bmi"] = round(bmi, 1)
+        
+        # Verificar valores críticos
+        critical_values = []
+        if vital_signs_data.get("systolic_bp", 0) > 180 or vital_signs_data.get("systolic_bp", 0) < 90:
+            critical_values.append("Presión arterial sistólica")
+        if vital_signs_data.get("diastolic_bp", 0) > 110 or vital_signs_data.get("diastolic_bp", 0) < 60:
+            critical_values.append("Presión arterial diastólica")
+        if vital_signs_data.get("heart_rate", 0) > 100 or vital_signs_data.get("heart_rate", 0) < 60:
+            critical_values.append("Frecuencia cardíaca")
+        if vital_signs_data.get("temperature_celsius", 0) > 38.5 or vital_signs_data.get("temperature_celsius", 0) < 35:
+            critical_values.append("Temperatura")
+        
+        vital_signs_record["is_critical"] = len(critical_values) > 0
+        vital_signs_record["critical_values"] = critical_values
+        
+        return {
+            "success": True,
+            "message": "Signos vitales registrados exitosamente",
+            "data": vital_signs_record
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error recording vital signs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/vital-signs/patient/{patient_id}", response_model=List[Dict[str, Any]], tags=["Vital Signs"])
+async def get_patient_vital_signs(
+    patient_id: str,
+    limit: int = Query(10, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtener historial de signos vitales de un paciente"""
+    try:
+        # Verificar permisos
+        if current_user["role"] not in ["doctor", "nurse", "admin"]:
+            if current_user["id"] != patient_id:
+                raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Datos de ejemplo de signos vitales
+        vital_signs_history = [
+            {
+                "id": "vs_1",
+                "patient_id": patient_id,
+                "measured_at": "2024-01-15T10:00:00Z",
+                "systolic_bp": 120,
+                "diastolic_bp": 80,
+                "heart_rate": 72,
+                "respiratory_rate": 16,
+                "temperature_celsius": 36.5,
+                "oxygen_saturation": 98,
+                "height_cm": 175.0,
+                "weight_kg": 70.5,
+                "bmi": 23.0,
+                "glucose_level": 95,
+                "pain_scale": 2,
+                "position": "Sentado",
+                "activity_level": "Reposo",
+                "notes": "Paciente en reposo, sin síntomas",
+                "measurement_method": "Manual",
+                "device_used": "Esfigmomanómetro digital",
+                "recorded_by": "doctor-123",
+                "is_critical": False,
+                "critical_values": []
+            },
+            {
+                "id": "vs_2",
+                "patient_id": patient_id,
+                "measured_at": "2024-01-14T14:30:00Z",
+                "systolic_bp": 118,
+                "diastolic_bp": 78,
+                "heart_rate": 68,
+                "respiratory_rate": 14,
+                "temperature_celsius": 36.2,
+                "oxygen_saturation": 99,
+                "height_cm": 175.0,
+                "weight_kg": 70.2,
+                "bmi": 22.9,
+                "glucose_level": 92,
+                "pain_scale": 1,
+                "position": "De pie",
+                "activity_level": "Activo",
+                "notes": "Paciente activo, buen estado general",
+                "measurement_method": "Automático",
+                "device_used": "Monitor multiparámetro",
+                "recorded_by": "nurse-456",
+                "is_critical": False,
+                "critical_values": []
+            }
+        ]
+        
+        return vital_signs_history[:limit]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting patient vital signs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/vital-signs/{vital_signs_id}", response_model=Dict[str, Any], tags=["Vital Signs"])
+async def get_vital_signs_details(
+    vital_signs_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtener detalles de un registro específico de signos vitales"""
+    try:
+        # Datos de ejemplo
+        vital_signs_data = {
+            "id": vital_signs_id,
+            "patient_id": "patient-123",
+            "measured_at": "2024-01-15T10:00:00Z",
+            "systolic_bp": 120,
+            "diastolic_bp": 80,
+            "heart_rate": 72,
+            "respiratory_rate": 16,
+            "temperature_celsius": 36.5,
+            "oxygen_saturation": 98,
+            "height_cm": 175.0,
+            "weight_kg": 70.5,
+            "bmi": 23.0,
+            "glucose_level": 95,
+            "pain_scale": 2,
+            "position": "Sentado",
+            "activity_level": "Reposo",
+            "notes": "Paciente en reposo, sin síntomas",
+            "measurement_method": "Manual",
+            "device_used": "Esfigmomanómetro digital",
+            "recorded_by": "doctor-123",
+            "is_critical": False,
+            "critical_values": []
+        }
+        
+        return vital_signs_data
+        
+    except Exception as e:
+        logger.error(f"Error getting vital signs details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =============================================
 # HEALTH CHECK
 # =============================================
+
+@app.get("/medical-records", response_model=List[MedicalRecordResponse], tags=["Medical Records"])
+async def get_medical_records(
+    patient_id: Optional[str] = Query(None),
+    doctor_id: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtener registros médicos con filtros opcionales"""
+    try:
+        # Por ahora, devolver datos de ejemplo hasta que se configure la base de datos
+        records = [
+            {
+                "id": "1",
+                "patient_id": patient_id or "patient-123",
+                "doctor_id": doctor_id or "doctor-456",
+                "appointment_id": "appointment-789",
+                "record_type": "consultation",
+                "version": 1,
+                "clinical_data": {
+                    "chief_complaint": "Dolor de cabeza",
+                    "diagnosis": "Migraña",
+                    "treatment": "Ibuprofeno 400mg cada 8 horas"
+                },
+                "created_at": "2024-01-15T10:00:00Z",
+                "status": "active"
+            },
+            {
+                "id": "2",
+                "patient_id": patient_id or "patient-123",
+                "doctor_id": doctor_id or "doctor-456",
+                "appointment_id": "appointment-790",
+                "record_type": "follow_up",
+                "version": 1,
+                "clinical_data": {
+                    "chief_complaint": "Seguimiento de migraña",
+                    "diagnosis": "Migraña controlada",
+                    "treatment": "Continuar con medicación"
+                },
+                "created_at": "2024-01-10T14:30:00Z",
+                "status": "active"
+            }
+        ]
+        
+        return [
+            MedicalRecordResponse(
+                id=record["id"],
+                patient_id=record["patient_id"],
+                doctor_id=record["doctor_id"],
+                appointment_id=record["appointment_id"],
+                record_type=record["record_type"],
+                version=record["version"],
+                clinical_data=record["clinical_data"],
+                created_at=record["created_at"],
+                status=record["status"]
+            )
+            for record in records
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error getting medical records: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health", tags=["Health"])
 async def health_check():
@@ -559,6 +818,16 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+# =============================================
+# METRICS
+# =============================================
+
+@app.get("/metrics", tags=["Metrics"])
+async def metrics():
+    """Prometheus metrics endpoint"""
+    from shared.metrics import get_metrics_response
+    return get_metrics_response()
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8003)
+    uvicorn.run(app, host="0.0.0.0", port=8007)

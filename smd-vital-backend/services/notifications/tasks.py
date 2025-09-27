@@ -31,11 +31,11 @@ from opentelemetry.trace import Status, StatusCode
 from prometheus_client import Counter, Histogram, Gauge
 from pybreaker import CircuitBreaker, CircuitBreakerError
 
-from app import celery
-from app.config import Config
-from app.utils.service_discovery import ServiceRegistry
-from app.utils.security import encrypt_sensitive_data, decrypt_sensitive_data
-from app.utils.rate_limiter import DistributedRateLimiter
+from .app import celery
+from .app.config import Config
+from .app.utils.service_discovery import ServiceRegistry
+from .app.utils.security import encrypt_sensitive_data, decrypt_sensitive_data
+from .app.utils.rate_limiter import DistributedRateLimiter
 
 # Configurar tracing y métricas
 tracer = trace.get_tracer(__name__)
@@ -81,9 +81,8 @@ class ServiceClient:
         self.base_url = base_url
         self.session = requests.Session()
         self.circuit_breaker = CircuitBreaker(
-            failure_threshold=5,
-            recovery_timeout=30,
-            expected_exception=requests.RequestException
+            fail_max=5,
+            reset_timeout=30
         )
         
         # Headers por defecto
@@ -93,7 +92,7 @@ class ServiceClient:
             'X-Service-Name': 'celery-worker'
         })
     
-    @CircuitBreaker(failure_threshold=5, recovery_timeout=30)
+    @CircuitBreaker(fail_max=5, reset_timeout=30)
     def call(self, method: str, endpoint: str, data: Dict = None, 
              timeout: int = 30, **kwargs) -> ServiceResponse:
         """Llamada HTTP con circuit breaker y tracing"""
@@ -169,6 +168,8 @@ user_client = ServiceClient("user-service", ServiceEndpoints.USER_SERVICE)
 appointment_client = ServiceClient("appointment-service", ServiceEndpoints.APPOINTMENT_SERVICE)
 notification_client = ServiceClient("notification-service", ServiceEndpoints.NOTIFICATION_SERVICE)
 auth_client = ServiceClient("auth-service", ServiceEndpoints.AUTH_SERVICE)
+payment_client = ServiceClient("payment-service", ServiceEndpoints.PAYMENT_SERVICE)
+medical_records_client = ServiceClient("medical-records-service", ServiceEndpoints.MEDICAL_RECORDS_SERVICE)
 
 def distributed_task(max_retries=3, default_retry_delay=60, rate_limit=None):
     """Decorador para tareas distribuidas con observabilidad"""
@@ -197,49 +198,49 @@ def distributed_task(max_retries=3, default_retry_delay=60, rate_limit=None):
                 
                 try:
                     logger.info(f"Starting distributed task {task_name} [{task_id}]", extra={
-                'task_name': task_name,
-                'task_id': task_id,
+                        'task_name': task_name,
+                        'task_id': task_id,
                         'trace_id': task_id,
                         'retry_count': self.request.retries
-            })
-            
-                result = func(self, *args, **kwargs)
-                
+                    })
+                    
+                    result = func(self, *args, **kwargs)
+                    
                     # Métricas de éxito
                     duration = time.time() - start_time
                     task_duration.labels(task_name=task_name).observe(duration)
                     task_counter.labels(task_name=task_name, status='success').inc()
                     
                     span.set_status(Status(StatusCode.OK))
-                logger.info(f"Task {task_name} [{task_id}] completed successfully")
+                    logger.info(f"Task {task_name} [{task_id}] completed successfully")
                     
-                return result
+                    return result
                 
             except Exception as exc:
-                    duration = time.time() - start_time
-                    task_duration.labels(task_name=task_name).observe(duration)
-                    
+                duration = time.time() - start_time
+                task_duration.labels(task_name=task_name).observe(duration)
+                
                 retry_count = self.request.retries
                 is_recoverable = _is_recoverable_error(exc)
-                    
-                    span.set_status(Status(StatusCode.ERROR, str(exc)))
-                    span.set_attribute("error.type", type(exc).__name__)
-                    span.set_attribute("error.recoverable", is_recoverable)
+                
+                span.set_status(Status(StatusCode.ERROR, str(exc)))
+                span.set_attribute("error.type", type(exc).__name__)
+                span.set_attribute("error.recoverable", is_recoverable)
                 
                 logger.error(f"Task {task_name} [{task_id}] failed: {str(exc)}", extra={
                     'task_name': task_name,
                     'task_id': task_id,
-                        'error_type': type(exc).__name__,
+                    'error_type': type(exc).__name__,
                     'retry_count': retry_count,
                     'is_recoverable': is_recoverable
                 })
                 
                 if is_recoverable and retry_count < max_retries:
-                        task_counter.labels(task_name=task_name, status='retry').inc()
+                    task_counter.labels(task_name=task_name, status='retry').inc()
                     countdown = default_retry_delay * (2 ** retry_count)
                     raise self.retry(exc=exc, countdown=countdown, max_retries=max_retries)
                 else:
-                        task_counter.labels(task_name=task_name, status='failed').inc()
+                    task_counter.labels(task_name=task_name, status='failed').inc()
                     raise exc
                         
                 finally:
@@ -316,13 +317,13 @@ def send_appointment_reminders(self) -> Dict[str, Any]:
             raise Exception(f"Appointment service error: {appointments_response.error}")
         
         appointments = appointments_response.data.get('appointments', [])
-            logger.info(f"Found {len(appointments)} appointments for reminders")
-            
-            reminders_sent = 0
-            errors = []
-            
-            for appointment in appointments:
-                try:
+        logger.info(f"Found {len(appointments)} appointments for reminders")
+        
+        reminders_sent = 0
+        errors = []
+        
+        for appointment in appointments:
+            try:
                 # Obtener datos del usuario
                 user_response = user_client.call('GET', f"/users/{appointment['user_id']}")
                 if not user_response.success:
@@ -332,43 +333,43 @@ def send_appointment_reminders(self) -> Dict[str, Any]:
                 user_data = user_response.data
                 
                 # Crear datos de recordatorio
-                    reminder_data = {
+                reminder_data = {
                     'id': f"appointment_reminder_{appointment['id']}",
                     'user_id': appointment['user_id'],
-                        'subject': 'Recordatorio de Cita - SMD Vital',
+                    'subject': 'Recordatorio de Cita - SMD Vital',
                     'content': f"Recordatorio: Tiene una cita programada para {appointment['scheduled_date']} a las {appointment['scheduled_time']}",
                     'template': 'appointment_reminder',
                     'channels': ['email', 'sms'] if user_data.get('phone') else ['email'],
                     'appointment_id': appointment['id']
-                    }
-                    
-                    # Enviar recordatorio
-                    process_notification.delay(reminder_data)
-                    
+                }
+                
+                # Enviar recordatorio
+                send_email_notification.delay(reminder_data)
+                
                 # Marcar como enviado en appointment-service
                 appointment_client.call(
                     'PUT', 
                     f"/appointments/{appointment['id']}/reminder-sent"
                 )
-                    
-                    reminders_sent += 1
-                    
-                except Exception as e:
+                
+                reminders_sent += 1
+                
+            except Exception as e:
                 error_msg = f"Error processing reminder for appointment {appointment['id']}: {str(e)}"
-                    logger.error(error_msg)
-                    errors.append(error_msg)
-                    continue
-            
-            result = {
-                'status': 'success',
-                'reminders_sent': reminders_sent,
-                'total_appointments': len(appointments),
-                'errors': errors,
-                'processed_at': datetime.utcnow().isoformat()
-            }
-            
-            logger.info(f"Appointment reminders completed: {reminders_sent} sent, {len(errors)} errors")
-            return result
+                logger.error(error_msg)
+                errors.append(error_msg)
+                continue
+        
+        result = {
+            'status': 'success',
+            'reminders_sent': reminders_sent,
+            'total_appointments': len(appointments),
+            'errors': errors,
+            'processed_at': datetime.utcnow().isoformat()
+        }
+        
+        logger.info(f"Appointment reminders completed: {reminders_sent} sent, {len(errors)} errors")
+        return result
             
     except Exception as exc:
         logger.error(f"Critical error in appointment reminders: {str(exc)}")

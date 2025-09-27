@@ -18,11 +18,7 @@ class UserService {
   async getUserProfile(token) {
     try {
       // Usar el endpoint /api/auth/me que ya funciona correctamente
-      const response = await this.apiService.request('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await this.apiService.makeRequest('get', '/api/auth/me', null, token);
       
       if (response.success) {
         return {
@@ -39,7 +35,7 @@ class UserService {
       if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
         return {
           success: false,
-          error: 'No se puede conectar con el servidor. Verifica que el backend esté ejecutándose en http://localhost:8000'
+          error: 'No se puede conectar con el servidor. Verifica que el backend esté ejecutándose en http://localhost:8001'
         };
       }
       
@@ -59,14 +55,7 @@ class UserService {
   async updateUserProfile(profileData, token) {
     try {
       // Usar el endpoint de perfil que existe
-      const response = await this.apiService.request('/users/profile', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(profileData)
-      });
+      const response = await this.apiService.makeRequest('put', '/users/profile', profileData, token);
       
       if (response.success) {
         return {
@@ -94,15 +83,7 @@ class UserService {
    */
   async getUserNotifications(token, params = {}) {
     try {
-      // Usar el endpoint de notificaciones que existe
-      const queryString = new URLSearchParams(params).toString();
-      const endpoint = queryString ? `/notifications?${queryString}` : '/notifications';
-      
-      const response = await this.apiService.request(endpoint, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await this.apiService.makeRequest('get', '/notifications', params, token);
       
       if (response.success) {
         return {
@@ -133,12 +114,7 @@ class UserService {
    */
   async markNotificationAsRead(notificationId, token) {
     try {
-      const response = await this.apiService.request(`/notifications/${notificationId}/read`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await this.apiService.makeRequest('put', `/notifications/${notificationId}/read`, null, token);
       
       return response;
     } catch (error) {
@@ -158,14 +134,7 @@ class UserService {
    */
   async updateNotificationSettings(settings, token) {
     try {
-      const response = await this.apiService.request('/notifications/settings', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(settings)
-      });
+      const response = await this.apiService.makeRequest('put', '/notifications/settings', settings, token);
       
       return response;
     } catch (error) {
@@ -190,11 +159,7 @@ class UserService {
       const queryString = new URLSearchParams(params).toString();
       const endpoint = queryString ? `/users?${queryString}` : '/users';
       
-      const response = await this.apiService.request(endpoint, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await this.apiService.makeRequest('get', endpoint, null, token);
       
       return response;
     } catch (error) {
@@ -214,11 +179,7 @@ class UserService {
    */
   async getUserById(userId, token) {
     try {
-      const response = await this.apiService.request(`/users/${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await this.apiService.makeRequest('get', `/users/${userId}`, null, token);
       
       if (response.success) {
         return {

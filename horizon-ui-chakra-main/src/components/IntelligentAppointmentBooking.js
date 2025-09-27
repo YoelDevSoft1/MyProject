@@ -163,8 +163,8 @@ const IntelligentAppointmentBooking = ({ isOpen, onClose, onSuccess }) => {
         return `550e8400-e29b-41d4-a716-${paddedId}${paddedId}${paddedId}`;
       };
       
-      const uuid = generateUUID(doctorId);
-      console.log('🔧 [IntelligentAppointmentBooking] UUID generado:', uuid);
+      const doctorUUID = generateUUID(doctorId);
+      console.log('🔧 [IntelligentAppointmentBooking] UUID generado:', doctorUUID);
       
       // Formatear fecha
       let formattedDate = date;
@@ -174,7 +174,7 @@ const IntelligentAppointmentBooking = ({ isOpen, onClose, onSuccess }) => {
       console.log('🔧 [IntelligentAppointmentBooking] Fecha formateada:', formattedDate);
       
       const response = await appointmentBookingService.getAvailableSlots(
-        uuid, // Usar UUID en lugar del ID original
+        doctorUUID, // Usar UUID consistente
         formattedDate,
         localStorage.getItem('smd_vital_token')
       );
@@ -200,16 +200,27 @@ const IntelligentAppointmentBooking = ({ isOpen, onClose, onSuccess }) => {
     setLoading(true);
     
     try {
+      // Generar UUID consistente para el doctor
+      const generateUUID = (id) => {
+        const paddedId = String(id).padStart(4, '0');
+        return `550e8400-e29b-41d4-a716-${paddedId}${paddedId}${paddedId}`;
+      };
+      
+      const doctorUUID = generateUUID(doctorId);
+      console.log('🔧 [IntelligentAppointmentBooking] Usando UUID consistente para reserva:', doctorUUID);
+      
       const response = await appointmentBookingService.createTemporaryReservation({
-        doctor_id: doctorId,
+        doctor_id: doctorUUID, // Usar UUID consistente
         slot_datetime: slot,
         patient_id: userDetection?.user_id,
-        medical_service_id: 'default-service', // TODO: Obtener del formulario
+        medical_service_id: '550e8400-e29b-41d4-a716-000000000000', // UUID válido para servicio por defecto
         appointment_type: formData.appointment_type
       }, localStorage.getItem('smd_vital_token'));
       
       if (response.success) {
-        setReservation(response.data);
+        console.log('🔧 [IntelligentAppointmentBooking] Response completa:', response);
+        console.log('🔧 [IntelligentAppointmentBooking] Response.data:', response.data);
+        setReservation(response.data); // response.data ya contiene los datos de la reserva
         setTimeLeft(Math.floor(response.data.time_left_seconds || 300));
         setStep('confirm');
       } else {
@@ -225,6 +236,9 @@ const IntelligentAppointmentBooking = ({ isOpen, onClose, onSuccess }) => {
   // Confirmar cita
   const confirmAppointment = async () => {
     if (!reservation) return;
+    
+    console.log('🔧 [IntelligentAppointmentBooking] Objeto reservation completo:', reservation);
+    console.log('🔧 [IntelligentAppointmentBooking] Reservation ID:', reservation.reservation_id);
     
     setLoading(true);
     

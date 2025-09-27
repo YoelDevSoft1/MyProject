@@ -1,0 +1,122 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "SMD Vital - Database Monitoring",
+    "tags": ["smd-vital", "database", "postgresql"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Database Size",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "pg_database_size_bytes{job=\"postgres\"}",
+            "refId": "A",
+            "legendFormat": "{{datname}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes",
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Active Connections",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends{job=\"postgres\"}",
+            "refId": "A",
+            "legendFormat": "{{datname}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 50},
+                {"color": "red", "value": 80}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Queries per Second",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(pg_stat_database_tup_fetched{job=\"postgres\"}[5m])",
+            "refId": "A",
+            "legendFormat": "Tuples fetched - {{datname}}"
+          },
+          {
+            "expr": "rate(pg_stat_database_tup_inserted{job=\"postgres\"}[5m])",
+            "refId": "B",
+            "legendFormat": "Tuples inserted - {{datname}}"
+          },
+          {
+            "expr": "rate(pg_stat_database_tup_updated{job=\"postgres\"}[5m])",
+            "refId": "C",
+            "legendFormat": "Tuples updated - {{datname}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Slow Queries",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "pg_stat_database_tup_returned{job=\"postgres\"}",
+            "refId": "A",
+            "legendFormat": "Tuples returned - {{datname}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Cache Hit Ratio",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "pg_stat_database_blks_hit{job=\"postgres\"} / (pg_stat_database_blks_hit{job=\"postgres\"} + pg_stat_database_blks_read{job=\"postgres\"}) * 100",
+            "refId": "A",
+            "legendFormat": "Cache hit ratio - {{datname}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}
+
+

@@ -1,0 +1,322 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-alerts
+  namespace: smd-vital
+data:
+  alerts.yml: |
+    groups:
+    - name: security
+      rules:
+      # Alertas de Autenticación
+      - alert: MultipleFailedLogins
+        expr: rate(auth_failed_logins[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          category: authentication
+        annotations:
+          summary: "Multiple failed login attempts detected"
+          description: "{{ $value }} failed login attempts per second in the last 5 minutes"
+          runbook_url: "https://docs.smdvital.com/runbooks/authentication-attacks"
+          
+      - alert: BruteForceAttack
+        expr: rate(auth_failed_logins[1m]) > 10
+        for: 0m
+        labels:
+          severity: critical
+          category: authentication
+        annotations:
+          summary: "Potential brute force attack detected"
+          description: "{{ $value }} failed login attempts per second - possible brute force attack"
+          runbook_url: "https://docs.smdvital.com/runbooks/brute-force-attacks"
+          
+      - alert: AccountLockout
+        expr: increase(account_lockouts[5m]) > 3
+        for: 0m
+        labels:
+          severity: high
+          category: authentication
+        annotations:
+          summary: "Multiple account lockouts detected"
+          description: "{{ $value }} accounts locked out in the last 5 minutes"
+          
+      # Alertas de Acceso a PHI
+      - alert: UnauthorizedPHIAccess
+        expr: increase(phi_unauthorized_access[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: phi_access
+        annotations:
+          summary: "Unauthorized access to PHI detected"
+          description: "Unauthorized access attempt to protected health information"
+          runbook_url: "https://docs.smdvital.com/runbooks/phi-breach"
+          
+      - alert: ExcessivePHIAccess
+        expr: rate(phi_access_events[5m]) > 20
+        for: 2m
+        labels:
+          severity: high
+          category: phi_access
+        annotations:
+          summary: "Excessive PHI access detected"
+          description: "{{ $value }} PHI access events per second - possible data exfiltration"
+          
+      - alert: PHIAccessOutsideBusinessHours
+        expr: phi_access_events{hour=~"0[0-6]|2[0-3]"} > 0
+        for: 0m
+        labels:
+          severity: medium
+          category: phi_access
+        annotations:
+          summary: "PHI access outside business hours"
+          description: "PHI access detected outside normal business hours (6 AM - 8 PM)"
+          
+      # Alertas de Seguridad de API
+      - alert: HighAPIFailureRate
+        expr: rate(api_requests{status=~"5.."}[5m]) / rate(api_requests[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: high
+          category: api_security
+        annotations:
+          summary: "High API failure rate detected"
+          description: "{{ $value | humanizePercentage }} of API requests are failing"
+          
+      - alert: SuspiciousAPIUsage
+        expr: rate(api_requests[5m]) > 1000
+        for: 2m
+        labels:
+          severity: warning
+          category: api_security
+        annotations:
+          summary: "High API usage detected"
+          description: "{{ $value }} API requests per second - possible DDoS or abuse"
+          
+      - alert: UnauthorizedAPIAccess
+        expr: rate(api_requests{status="401"}[5m]) > 10
+        for: 1m
+        labels:
+          severity: high
+          category: api_security
+        annotations:
+          summary: "Multiple unauthorized API access attempts"
+          description: "{{ $value }} unauthorized API requests per second"
+          
+      # Alertas de Seguridad de Datos
+      - alert: DataExfiltrationAttempt
+        expr: rate(data_export_requests[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          category: data_security
+        annotations:
+          summary: "Potential data exfiltration attempt"
+          description: "{{ $value }} data export requests per second"
+          runbook_url: "https://docs.smdvital.com/runbooks/data-exfiltration"
+          
+      - alert: UnusualDataAccessPattern
+        expr: rate(data_access_events[10m]) > 50
+        for: 2m
+        labels:
+          severity: medium
+          category: data_security
+        annotations:
+          summary: "Unusual data access pattern detected"
+          description: "{{ $value }} data access events per second - unusual pattern"
+          
+      # Alertas de Infraestructura
+      - alert: CertificateExpiration
+        expr: (ssl_certificate_expiry_timestamp - time()) / 86400 < 30
+        for: 0m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "SSL certificate expires in {{ $value }} days"
+          
+      - alert: DatabaseConnectionFailure
+        expr: rate(database_connection_failures[5m]) > 1
+        for: 1m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Database connection failures detected"
+          description: "{{ $value }} database connection failures per second"
+          
+      - alert: RedisConnectionFailure
+        expr: rate(redis_connection_failures[5m]) > 1
+        for: 1m
+        labels:
+          severity: high
+          category: infrastructure
+        annotations:
+          summary: "Redis connection failures detected"
+          description: "{{ $value }} Redis connection failures per second"
+          
+      # Alertas de Compliance
+      - alert: AuditLogFailure
+        expr: rate(audit_log_failures[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: compliance
+        annotations:
+          summary: "Audit logging failure detected"
+          description: "{{ $value }} audit log failures per second - compliance risk"
+          runbook_url: "https://docs.smdvital.com/runbooks/audit-logging"
+          
+      - alert: DataRetentionViolation
+        expr: data_retention_violations > 0
+        for: 0m
+        labels:
+          severity: high
+          category: compliance
+        annotations:
+          summary: "Data retention policy violation"
+          description: "{{ $value }} data retention violations detected"
+          
+      # Alertas de Seguridad de Red
+      - alert: SuspiciousNetworkTraffic
+        expr: rate(network_bytes_out[5m]) > 1000000000  # 1GB/s
+        for: 2m
+        labels:
+          severity: high
+          category: network_security
+        annotations:
+          summary: "Suspicious network traffic detected"
+          description: "{{ $value | humanizeBytes }}/s outgoing network traffic"
+          
+      - alert: PortScanning
+        expr: rate(port_scan_attempts[5m]) > 10
+        for: 1m
+        labels:
+          severity: medium
+          category: network_security
+        annotations:
+          summary: "Potential port scanning detected"
+          description: "{{ $value }} port scan attempts per second"
+          
+      # Alertas de Seguridad de Aplicación
+      - alert: SQLInjectionAttempt
+        expr: rate(sql_injection_attempts[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: application_security
+        annotations:
+          summary: "SQL injection attempt detected"
+          description: "{{ $value }} SQL injection attempts per second"
+          runbook_url: "https://docs.smdvital.com/runbooks/sql-injection"
+          
+      - alert: XSSAttempt
+        expr: rate(xss_attempts[5m]) > 0
+        for: 0m
+        labels:
+          severity: high
+          category: application_security
+        annotations:
+          summary: "XSS attempt detected"
+          description: "{{ $value }} XSS attempts per second"
+          
+      - alert: CSRFAttempt
+        expr: rate(csrf_attempts[5m]) > 0
+        for: 0m
+        labels:
+          severity: high
+          category: application_security
+        annotations:
+          summary: "CSRF attempt detected"
+          description: "{{ $value }} CSRF attempts per second"
+          
+      # Alertas de Seguridad de Contenedores
+      - alert: ContainerPrivilegeEscalation
+        expr: container_privilege_escalation_attempts > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: container_security
+        annotations:
+          summary: "Container privilege escalation attempt"
+          description: "Privilege escalation attempt detected in container"
+          
+      - alert: ContainerResourceAbuse
+        expr: container_cpu_usage > 0.9 or container_memory_usage > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: container_security
+        annotations:
+          summary: "Container resource abuse detected"
+          description: "Container using {{ $value | humanizePercentage }} of resources"
+          
+      # Alertas de Seguridad de Base de Datos
+      - alert: DatabaseSlowQuery
+        expr: rate(database_slow_queries[5m]) > 5
+        for: 2m
+        labels:
+          severity: medium
+          category: database_security
+        annotations:
+          summary: "High number of slow database queries"
+          description: "{{ $value }} slow queries per second"
+          
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: database_connection_pool_usage > 0.9
+        for: 1m
+        labels:
+          severity: high
+          category: database_security
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "{{ $value | humanizePercentage }} of connection pool in use"
+          
+      # Alertas de Seguridad de Archivos
+      - alert: UnauthorizedFileAccess
+        expr: rate(unauthorized_file_access[5m]) > 0
+        for: 0m
+        labels:
+          severity: high
+          category: file_security
+        annotations:
+          summary: "Unauthorized file access detected"
+          description: "{{ $value }} unauthorized file access attempts per second"
+          
+      - alert: FileIntegrityViolation
+        expr: file_integrity_violations > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: file_security
+        annotations:
+          summary: "File integrity violation detected"
+          description: "{{ $value }} file integrity violations detected"
+          runbook_url: "https://docs.smdvital.com/runbooks/file-integrity"
+          
+      # Alertas de Seguridad de Configuración
+      - alert: ConfigurationDrift
+        expr: configuration_drift_detected > 0
+        for: 0m
+        labels:
+          severity: medium
+          category: configuration_security
+        annotations:
+          summary: "Configuration drift detected"
+          description: "{{ $value }} configuration drift events detected"
+          
+      - alert: DefaultCredentials
+        expr: default_credentials_detected > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: configuration_security
+        annotations:
+          summary: "Default credentials detected"
+          description: "{{ $value }} default credential usage detected"
+          runbook_url: "https://docs.smdvital.com/runbooks/default-credentials"
+
+
+

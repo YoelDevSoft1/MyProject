@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "kibana": {
+    "version": "8.11.0"
+  },
+  "objects": [
+    {
+      "id": "smd-vital-overview",
+      "type": "dashboard",
+      "attributes": {
+        "title": "SMD Vital - Overview Dashboard",
+        "description": "Dashboard principal para monitorear todos los servicios SMD Vital",
+        "panelsJSON": "[{\"version\":\"8.11.0\",\"gridData\":{\"x\":0,\"y\":0,\"w\":24,\"h\":15,\"i\":\"1\"},\"type\":\"visualization\",\"id\":\"error-rate-by-service\",\"panelIndex\":\"1\"},{\"version\":\"8.11.0\",\"gridData\":{\"x\":24,\"y\":0,\"w\":24,\"h\":15,\"i\":\"2\"},\"type\":\"visualization\",\"id\":\"request-count-by-service\",\"panelIndex\":\"2\"},{\"version\":\"8.11.0\",\"gridData\":{\"x\":0,\"y\":15,\"w\":24,\"h\":15,\"i\":\"3\"},\"type\":\"visualization\",\"id\":\"response-time-by-service\",\"panelIndex\":\"3\"},{\"version\":\"8.11.0\",\"gridData\":{\"x\":24,\"y\":15,\"w\":24,\"h\":15,\"i\":\"4\"},\"type\":\"visualization\",\"id\":\"user-activity-timeline\",\"panelIndex\":\"4\"}]",
+        "optionsJSON": "{\"darkTheme\":false,\"useMargins\":true,\"syncColors\":false,\"hidePanelTitles\":false}",
+        "version": 1,
+        "timeRestore": false,
+        "kibanaSavedObjectMeta": {
+          "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[]}"
+        }
+      }
+    },
+    {
+      "id": "error-rate-by-service",
+      "type": "visualization",
+      "attributes": {
+        "title": "Tasa de Errores por Servicio",
+        "visState": "{\"title\":\"Tasa de Errores por Servicio\",\"type\":\"histogram\",\"params\":{\"grid\":{\"categoryLines\":false,\"style\":{\"color\":\"#eee\"}},\"categoryAxes\":[{\"id\":\"CategoryAxis-1\",\"type\":\"category\",\"position\":\"bottom\",\"show\":true,\"style\":{},\"scale\":{\"type\":\"linear\"},\"labels\":{\"show\":true,\"truncate\":100},\"title\":{}}],\"valueAxes\":[{\"id\":\"ValueAxis-1\",\"name\":\"LeftAxis-1\",\"type\":\"value\",\"position\":\"left\",\"show\":true,\"style\":{},\"scale\":{\"type\":\"linear\",\"mode\":\"normal\"},\"labels\":{\"show\":true,\"rotate\":0,\"filter\":false,\"truncate\":100},\"title\":{\"text\":\"Tasa de Errores\"}}],\"seriesParams\":[{\"data\":{\"id\":\"1\",\"label\":\"Errores\"},\"type\":\"histogram\",\"valueAxis\":\"ValueAxis-1\",\"drawLinesBetweenPoints\":true,\"showCircles\":true}],\"addTooltip\":true,\"addLegend\":true,\"legendPosition\":\"right\",\"times\":[],\"addTimeMarker\":false},\"aggs\":[{\"id\":\"1\",\"type\":\"count\",\"schema\":\"metric\",\"params\":{}},{\"id\":\"2\",\"type\":\"terms\",\"schema\":\"segment\",\"params\":{\"field\":\"service.keyword\",\"size\":5,\"order\":\"desc\",\"orderBy\":\"1\"}},{\"id\":\"3\",\"type\":\"date_histogram\",\"schema\":\"segment\",\"params\":{\"field\":\"@timestamp\",\"interval\":\"auto\",\"customInterval\":\"2h\",\"min_doc_count\":1,\"extended_bounds\":{}}}]}",
+        "uiStateJSON": "{}",
+        "description": "Muestra la tasa de errores por servicio a lo largo del tiempo",
+        "version": 1,
+        "kibanaSavedObjectMeta": {
+          "searchSourceJSON": "{\"index\":\"smd-vital-logs-*\",\"query\":{\"query\":\"level:ERROR\",\"language\":\"kuery\"},\"filter\":[]}"
+        }
+      }
+    },
+    {
+      "id": "request-count-by-service",
+      "type": "visualization",
+      "attributes": {
+        "title": "Número de Requests por Servicio",
+        "visState": "{\"title\":\"Número de Requests por Servicio\",\"type\":\"pie\",\"params\":{\"addTooltip\":true,\"addLegend\":true,\"legendPosition\":\"right\",\"isDonut\":true,\"labels\":{\"show\":false,\"values\":true,\"last_level\":true,\"truncate\":100}},\"aggs\":[{\"id\":\"1\",\"type\":\"count\",\"schema\":\"metric\",\"params\":{}},{\"id\":\"2\",\"type\":\"terms\",\"schema\":\"segment\",\"params\":{\"field\":\"service.keyword\",\"size\":10,\"order\":\"desc\",\"orderBy\":\"1\"}}]}",
+        "uiStateJSON": "{}",
+        "description": "Distribución de requests entre servicios",
+        "version": 1,
+        "kibanaSavedObjectMeta": {
+          "searchSourceJSON": "{\"index\":\"smd-vital-logs-*\",\"query\":{\"query\":\"type:http_request\",\"language\":\"kuery\"},\"filter\":[]}"
+        }
+      }
+    },
+    {
+      "id": "response-time-by-service",
+      "type": "visualization",
+      "attributes": {
+        "title": "Tiempo de Respuesta por Servicio",
+        "visState": "{\"title\":\"Tiempo de Respuesta por Servicio\",\"type\":\"line\",\"params\":{\"grid\":{\"categoryLines\":false,\"style\":{\"color\":\"#eee\"}},\"categoryAxes\":[{\"id\":\"CategoryAxis-1\",\"type\":\"category\",\"position\":\"bottom\",\"show\":true,\"style\":{},\"scale\":{\"type\":\"linear\"},\"labels\":{\"show\":true,\"truncate\":100},\"title\":{}}],\"valueAxes\":[{\"id\":\"ValueAxis-1\",\"name\":\"LeftAxis-1\",\"type\":\"value\",\"position\":\"left\",\"show\":true,\"style\":{},\"scale\":{\"type\":\"linear\",\"mode\":\"normal\"},\"labels\":{\"show\":true,\"rotate\":0,\"filter\":false,\"truncate\":100},\"title\":{\"text\":\"Tiempo de Respuesta (ms)\"}}],\"seriesParams\":[{\"data\":{\"id\":\"1\",\"label\":\"Tiempo de Respuesta\"},\"type\":\"line\",\"valueAxis\":\"ValueAxis-1\",\"drawLinesBetweenPoints\":true,\"showCircles\":true}],\"addTooltip\":true,\"addLegend\":true,\"legendPosition\":\"right\",\"times\":[],\"addTimeMarker\":false},\"aggs\":[{\"id\":\"1\",\"type\":\"avg\",\"schema\":\"metric\",\"params\":{\"field\":\"duration_ms\"}},{\"id\":\"2\",\"type\":\"terms\",\"schema\":\"group\",\"params\":{\"field\":\"service.keyword\",\"size\":5,\"order\":\"desc\",\"orderBy\":\"1\"}},{\"id\":\"3\",\"type\":\"date_histogram\",\"schema\":\"segment\",\"params\":{\"field\":\"@timestamp\",\"interval\":\"auto\",\"customInterval\":\"2h\",\"min_doc_count\":1,\"extended_bounds\":{}}}]}",
+        "uiStateJSON": "{}",
+        "description": "Tiempo promedio de respuesta por servicio",
+        "version": 1,
+        "kibanaSavedObjectMeta": {
+          "searchSourceJSON": "{\"index\":\"smd-vital-logs-*\",\"query\":{\"query\":\"type:http_request AND duration_ms:[* TO *]\",\"language\":\"kuery\"},\"filter\":[]}"
+        }
+      }
+    },
+    {
+      "id": "user-activity-timeline",
+      "type": "visualization",
+      "attributes": {
+        "title": "Actividad de Usuarios",
+        "visState": "{\"title\":\"Actividad de Usuarios\",\"type\":\"histogram\",\"params\":{\"grid\":{\"categoryLines\":false,\"style\":{\"color\":\"#eee\"}},\"categoryAxes\":[{\"id\":\"CategoryAxis-1\",\"type\":\"category\",\"position\":\"bottom\",\"show\":true,\"style\":{},\"scale\":{\"type\":\"linear\"},\"labels\":{\"show\":true,\"truncate\":100},\"title\":{}}],\"valueAxes\":[{\"id\":\"ValueAxis-1\",\"name\":\"LeftAxis-1\",\"type\":\"value\",\"position\":\"left\",\"show\":true,\"style\":{},\"scale\":{\"type\":\"linear\",\"mode\":\"normal\"},\"labels\":{\"show\":true,\"rotate\":0,\"filter\":false,\"truncate\":100},\"title\":{\"text\":\"Número de Eventos\"}}],\"seriesParams\":[{\"data\":{\"id\":\"1\",\"label\":\"Eventos de Usuario\"},\"type\":\"histogram\",\"valueAxis\":\"ValueAxis-1\",\"drawLinesBetweenPoints\":true,\"showCircles\":true}],\"addTooltip\":true,\"addLegend\":true,\"legendPosition\":\"right\",\"times\":[],\"addTimeMarker\":false},\"aggs\":[{\"id\":\"1\",\"type\":\"count\",\"schema\":\"metric\",\"params\":{}},{\"id\":\"2\",\"type\":\"date_histogram\",\"schema\":\"segment\",\"params\":{\"field\":\"@timestamp\",\"interval\":\"auto\",\"customInterval\":\"1h\",\"min_doc_count\":1,\"extended_bounds\":{}}}]}",
+        "uiStateJSON": "{}",
+        "description": "Timeline de actividad de usuarios",
+        "version": 1,
+        "kibanaSavedObjectMeta": {
+          "searchSourceJSON": "{\"index\":\"smd-vital-logs-*\",\"query\":{\"query\":\"type:business_event\",\"language\":\"kuery\"},\"filter\":[]}"
+        }
+      }
+    }
+  ]
+}
+
+
+
+
+
+
+
+
+
+
+
+
+

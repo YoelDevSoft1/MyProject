@@ -1,0 +1,31 @@
+{
+  "connection_params": {
+    "heartbeat": 60,
+    "blocked_connection_timeout": 300,
+    "socket_timeout": 30,
+    "connection_attempts": 3,
+    "retry_delay": 5,
+    "retry_backoff": 1.2,
+    "retry_backoff_max": 30
+  },
+  "channel_params": {
+    "prefetch_count": 1,
+    "prefetch_size": 0,
+    "global_prefetch_count": 0
+  },
+  "queue_params": {
+    "durable": true,
+    "auto_delete": false,
+    "exclusive": false,
+    "arguments": {
+      "x-message-ttl": 3600000,
+      "x-expires": 86400000,
+      "x-max-length": 10000
+    }
+  },
+  "exchange_params": {
+    "durable": true,
+    "auto_delete": false,
+    "passive": false
+  }
+}

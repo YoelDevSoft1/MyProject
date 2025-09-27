@@ -15,11 +15,7 @@ class UserDetectionService {
    */
   async getUserDetectionInfo(token) {
     try {
-      const response = await this.apiService.request('/api/auth/me/detection', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await this.apiService.makeRequest('get', '/api/auth/me/detection', null, token);
       
       if (response.success) {
         return {

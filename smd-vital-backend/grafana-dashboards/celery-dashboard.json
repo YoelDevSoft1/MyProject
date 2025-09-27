@@ -1,0 +1,144 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "SMD Vital - Celery Tasks Monitoring",
+    "tags": ["smd-vital", "celery", "tasks"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active Tasks",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "celery_active_tasks{job=\"celery-worker\"}",
+            "refId": "A",
+            "legendFormat": "{{task_name}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Task Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(celery_tasks_total{job=\"celery-worker\",status=\"success\"}[5m]) / rate(celery_tasks_total{job=\"celery-worker\"}[5m]) * 100",
+            "refId": "A",
+            "legendFormat": "Success Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 80},
+                {"color": "green", "value": 95}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Tasks per Second",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(celery_tasks_total{job=\"celery-worker\"}[5m])",
+            "refId": "A",
+            "legendFormat": "{{task_name}} - {{status}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Task Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(celery_task_duration_seconds_bucket{job=\"celery-worker\"}[5m]))",
+            "refId": "A",
+            "legendFormat": "95th percentile - {{task_name}}"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(celery_task_duration_seconds_bucket{job=\"celery-worker\"}[5m]))",
+            "refId": "B",
+            "legendFormat": "50th percentile - {{task_name}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Failed Tasks",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(celery_tasks_total{job=\"celery-worker\",status=\"failed\"}[5m])",
+            "refId": "A",
+            "legendFormat": "{{task_name}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Worker Status",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "up{job=\"celery-worker\"}",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -21,7 +21,7 @@ class MedicalRecordsService {
    */
   async createMedicalRecord(appointmentId, consultationData) {
     try {
-      const response = await apiService.request(`${this.baseUrl}`, {
+      const response = await apiService.makeRequest(`${this.baseUrl}`, {
         method: 'POST',
         body: JSON.stringify({
           appointment_id: appointmentId,
@@ -52,7 +52,7 @@ class MedicalRecordsService {
       if (options.limit) params.append('limit', options.limit);
       if (options.recordType) params.append('record_type', options.recordType);
 
-      const response = await apiService.request(
+      const response = await apiService.makeRequest(
         `${this.baseUrl}/patient/${patientId}?${params.toString()}`
       );
 
@@ -74,7 +74,7 @@ class MedicalRecordsService {
    */
   async getMedicalRecord(recordId) {
     try {
-      const response = await apiService.request(`${this.baseUrl}/${recordId}`);
+      const response = await apiService.makeRequest(`${this.baseUrl}/${recordId}`);
 
       return {
         success: true,
@@ -98,7 +98,7 @@ class MedicalRecordsService {
    */
   async createPrescription(medicalRecordId, medications, doctorNotes = '') {
     try {
-      const response = await apiService.request(this.prescriptionsUrl, {
+      const response = await apiService.makeRequest(this.prescriptionsUrl, {
         method: 'POST',
         body: JSON.stringify({
           medical_record_id: medicalRecordId,
@@ -130,7 +130,7 @@ class MedicalRecordsService {
       if (options.status) params.append('status', options.status);
       if (options.limit) params.append('limit', options.limit);
 
-      const response = await apiService.request(
+      const response = await apiService.makeRequest(
         `${this.prescriptionsUrl}/patient/${patientId}?${params.toString()}`
       );
 
@@ -152,7 +152,7 @@ class MedicalRecordsService {
    */
   async getPrescription(prescriptionId) {
     try {
-      const response = await apiService.request(`${this.prescriptionsUrl}/${prescriptionId}`);
+      const response = await apiService.makeRequest(`${this.prescriptionsUrl}/${prescriptionId}`);
 
       return {
         success: true,
@@ -172,7 +172,7 @@ class MedicalRecordsService {
    */
   async cancelPrescription(prescriptionId, reason = '') {
     try {
-      const response = await apiService.request(`${this.prescriptionsUrl}/${prescriptionId}/cancel`, {
+      const response = await apiService.makeRequest(`${this.prescriptionsUrl}/${prescriptionId}/cancel`, {
         method: 'POST',
         body: JSON.stringify({ reason })
       });
@@ -199,7 +199,7 @@ class MedicalRecordsService {
    */
   async submitRating(doctorId, appointmentId, rating, comment = '', categories = {}) {
     try {
-      const response = await apiService.request(this.ratingsUrl, {
+      const response = await apiService.makeRequest(this.ratingsUrl, {
         method: 'POST',
         body: JSON.stringify({
           doctor_id: doctorId,
@@ -233,7 +233,7 @@ class MedicalRecordsService {
       if (options.limit) params.append('limit', options.limit);
       if (options.verifiedOnly !== undefined) params.append('verified_only', options.verifiedOnly);
 
-      const response = await apiService.request(
+      const response = await apiService.makeRequest(
         `${this.ratingsUrl}/doctor/${doctorId}?${params.toString()}`
       );
 
@@ -255,7 +255,7 @@ class MedicalRecordsService {
    */
   async getDoctorRatingAggregate(doctorId) {
     try {
-      const response = await apiService.request(`${this.ratingsUrl}/doctor/${doctorId}/aggregate`);
+      const response = await apiService.makeRequest(`${this.ratingsUrl}/doctor/${doctorId}/aggregate`);
 
       return {
         success: true,
@@ -281,7 +281,7 @@ class MedicalRecordsService {
       if (options.minRatings) params.append('min_ratings', options.minRatings);
       if (options.limit) params.append('limit', options.limit);
 
-      const response = await apiService.request(
+      const response = await apiService.makeRequest(
         `${this.ratingsUrl}/top-doctors?${params.toString()}`
       );
 
@@ -303,7 +303,7 @@ class MedicalRecordsService {
    */
   async getRatingStatistics() {
     try {
-      const response = await apiService.request(`${this.ratingsUrl}/stats`);
+      const response = await apiService.makeRequest(`${this.ratingsUrl}/stats`);
 
       return {
         success: true,

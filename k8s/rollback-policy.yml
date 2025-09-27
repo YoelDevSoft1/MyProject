@@ -1,0 +1,288 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rollback-policy
+  namespace: smd-vital
+data:
+  policy.yml: |
+    # SMD Vital - Rollback Policy Configuration
+    # =========================================
+    
+    rollback_triggers:
+      # Métricas de rendimiento
+      - metric: error_rate
+        threshold: 5%
+        duration: 2m
+        severity: critical
+        action: immediate_rollback
+        
+      - metric: response_time
+        threshold: 2000ms
+        duration: 1m
+        severity: high
+        action: rollback_after_verification
+        
+      - metric: throughput
+        threshold: 50%
+        duration: 3m
+        severity: medium
+        action: investigate_before_rollback
+        
+      # Métricas de salud
+      - metric: health_check_failures
+        threshold: 3
+        duration: 30s
+        severity: critical
+        action: immediate_rollback
+        
+      - metric: service_availability
+        threshold: 95%
+        duration: 2m
+        severity: high
+        action: rollback_after_verification
+        
+      # Métricas de seguridad
+      - metric: security_events
+        threshold: 10
+        duration: 1m
+        severity: critical
+        action: immediate_rollback
+        
+      - metric: unauthorized_access_attempts
+        threshold: 5
+        duration: 30s
+        severity: high
+        action: rollback_after_verification
+        
+      # Métricas de recursos
+      - metric: cpu_usage
+        threshold: 90%
+        duration: 5m
+        severity: medium
+        action: investigate_before_rollback
+        
+      - metric: memory_usage
+        threshold: 90%
+        duration: 5m
+        severity: medium
+        action: investigate_before_rollback
+        
+      - metric: disk_usage
+        threshold: 95%
+        duration: 2m
+        severity: high
+        action: rollback_after_verification
+        
+      # Métricas de base de datos
+      - metric: database_connection_failures
+        threshold: 5
+        duration: 1m
+        severity: critical
+        action: immediate_rollback
+        
+      - metric: database_slow_queries
+        threshold: 10
+        duration: 2m
+        severity: medium
+        action: investigate_before_rollback
+        
+      # Métricas de red
+      - metric: network_latency
+        threshold: 1000ms
+        duration: 3m
+        severity: medium
+        action: investigate_before_rollback
+        
+      - metric: packet_loss
+        threshold: 5%
+        duration: 1m
+        severity: high
+        action: rollback_after_verification
+        
+      # Métricas de negocio
+      - metric: payment_failures
+        threshold: 10%
+        duration: 2m
+        severity: critical
+        action: immediate_rollback
+        
+      - metric: appointment_creation_failures
+        threshold: 20%
+        duration: 3m
+        severity: high
+        action: rollback_after_verification
+        
+      - metric: user_registration_failures
+        threshold: 15%
+        duration: 2m
+        severity: medium
+        action: investigate_before_rollback
+
+    # Configuración de rollback
+    rollback_config:
+      # Tiempo de espera antes del rollback
+      wait_time: 30s
+      
+      # Número máximo de rollbacks por hora
+      max_rollbacks_per_hour: 3
+      
+      # Tiempo de espera entre rollbacks
+      cooldown_period: 10m
+      
+      # Notificaciones
+      notifications:
+        slack:
+          enabled: true
+          webhook_url: "${SLACK_WEBHOOK_URL}"
+          channels:
+            - "#alerts"
+            - "#deployments"
+        
+        email:
+          enabled: true
+          recipients:
+            - "devops@smdvital.com"
+            - "security@smdvital.com"
+        
+        pagerduty:
+          enabled: true
+          integration_key: "${PAGERDUTY_INTEGRATION_KEY}"
+      
+      # Configuración de verificación
+      verification:
+        # Verificar que el rollback fue exitoso
+        verify_rollback_success: true
+        
+        # Tiempo de espera para verificación
+        verification_timeout: 5m
+        
+        # Métricas a verificar después del rollback
+        verify_metrics:
+          - error_rate
+          - response_time
+          - health_check_failures
+          - service_availability
+      
+      # Configuración de alertas
+      alerts:
+        # Alertar antes del rollback
+        alert_before_rollback: true
+        
+        # Alertar después del rollback
+        alert_after_rollback: true
+        
+        # Alertar si el rollback falla
+        alert_on_rollback_failure: true
+      
+      # Configuración de logging
+      logging:
+        # Nivel de logging
+        level: "INFO"
+        
+        # Incluir métricas en logs
+        include_metrics: true
+        
+        # Incluir contexto en logs
+        include_context: true
+        
+        # Retención de logs
+        retention_days: 30
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rollback-controller
+  namespace: smd-vital
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rollback-controller
+  template:
+    metadata:
+      labels:
+        app: rollback-controller
+    spec:
+      containers:
+      - name: rollback-controller
+        image: smd-vital/rollback-controller:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PROMETHEUS_URL
+          value: "http://prometheus:9090"
+        - name: KUBECONFIG
+          value: "/etc/kubernetes/kubeconfig"
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: rollback-secrets
+              key: slack-webhook-url
+        - name: PAGERDUTY_INTEGRATION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rollback-secrets
+              key: pagerduty-integration-key
+        volumeMounts:
+        - name: kubeconfig
+          mountPath: /etc/kubernetes
+          readOnly: true
+        - name: rollback-policy
+          mountPath: /etc/rollback-policy
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: kubeconfig
+        secret:
+          secretName: kubeconfig
+      - name: rollback-policy
+        configMap:
+          name: rollback-policy
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rollback-controller
+  namespace: smd-vital
+spec:
+  selector:
+    app: rollback-controller
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rollback-secrets
+  namespace: smd-vital
+type: Opaque
+data:
+  slack-webhook-url: ""  # Base64 encoded
+  pagerduty-integration-key: ""  # Base64 encoded
+
+
+

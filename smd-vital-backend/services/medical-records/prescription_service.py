@@ -16,12 +16,16 @@ import base64
 
 # Para generación de PDFs
 try:
-    from weasyprint import HTML, CSS
-    from weasyprint.text.fonts import FontConfiguration
-    WEASYPRINT_AVAILABLE = True
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    REPORTLAB_AVAILABLE = True
 except ImportError:
-    WEASYPRINT_AVAILABLE = False
-    logging.warning("WeasyPrint not available. PDF generation will be disabled.")
+    REPORTLAB_AVAILABLE = False
+    logging.info("ReportLab not available. PDF generation will be disabled.")
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +127,7 @@ class PrescriptionService:
                 )
                 
                 # Generar PDF si se solicita
-                if generate_pdf and WEASYPRINT_AVAILABLE:
+                if generate_pdf and REPORTLAB_AVAILABLE:
                     pdf_url = await self.generate_prescription_pdf(prescription)
                     prescription.pdf_url = pdf_url
                 
@@ -153,23 +157,17 @@ class PrescriptionService:
                     if cached_url:
                         return cached_url
             
-            if not WEASYPRINT_AVAILABLE:
-                raise Exception("WeasyPrint not available for PDF generation")
+            if not REPORTLAB_AVAILABLE:
+                raise Exception("ReportLab not available for PDF generation")
             
             # Obtener datos del paciente y doctor
             patient_data = await self._get_patient_data(prescription.patient_id)
             doctor_data = await self._get_doctor_data(prescription.doctor_id)
             
-            # Generar HTML de la receta
-            html_content = self._generate_prescription_html(
+            # Generar PDF directamente con ReportLab
+            pdf_bytes = await self._generate_prescription_pdf_reportlab(
                 prescription, patient_data, doctor_data
             )
-            
-            # Generar CSS
-            css_content = self._get_prescription_css()
-            
-            # Convertir a PDF
-            pdf_bytes = await self._html_to_pdf(html_content, css_content)
             
             # Subir a storage si está disponible
             if self.storage:
@@ -347,218 +345,149 @@ class PrescriptionService:
             }
         return {}
     
-    def _generate_prescription_html(
+    
+    async def _generate_prescription_pdf_reportlab(
         self, 
         prescription: Prescription, 
         patient_data: Dict[str, Any], 
         doctor_data: Dict[str, Any]
-    ) -> str:
+    ) -> bytes:
         """
-        Generar HTML para la receta médica
-        """
-        medications_html = ""
-        for i, med in enumerate(prescription.prescription_data['medications'], 1):
-            medications_html += f"""
-            <div class="medication">
-                <div class="med-number">{i}.</div>
-                <div class="med-details">
-                    <div class="med-name">{med['name']}</div>
-                    <div class="med-dosage">Dosis: {med['dosage']}</div>
-                    <div class="med-frequency">Frecuencia: {med['frequency']}</div>
-                    <div class="med-duration">Duración: {med['duration']}</div>
-                    <div class="med-instructions">Instrucciones: {med['instructions']}</div>
-                </div>
-            </div>
-            """
-        
-        html_template = f"""
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-            <meta charset="UTF-8">
-            <title>Receta Médica - SMD VITAL</title>
-        </head>
-        <body>
-            <div class="prescription-container">
-                <header class="prescription-header">
-                    <div class="clinic-info">
-                        <h1>SMD VITAL</h1>
-                        <p>Sistema Médico Digital</p>
-                        <p>Receta Médica</p>
-                    </div>
-                    <div class="prescription-info">
-                        <p><strong>No. Receta:</strong> {prescription.id[:8]}</p>
-                        <p><strong>Fecha:</strong> {prescription.created_at.strftime('%d/%m/%Y')}</p>
-                    </div>
-                </header>
-                
-                <div class="patient-info">
-                    <h2>Datos del Paciente</h2>
-                    <p><strong>Nombre:</strong> {patient_data.get('name', 'N/A')}</p>
-                    <p><strong>Teléfono:</strong> {patient_data.get('phone', 'N/A')}</p>
-                </div>
-                
-                <div class="doctor-info">
-                    <h2>Datos del Médico</h2>
-                    <p><strong>Nombre:</strong> {doctor_data.get('name', 'N/A')}</p>
-                    <p><strong>Especialidad:</strong> {doctor_data.get('specialty', 'N/A')}</p>
-                    <p><strong>Licencia:</strong> {doctor_data.get('license', 'N/A')}</p>
-                </div>
-                
-                <div class="medications">
-                    <h2>Medicamentos Recetados</h2>
-                    {medications_html}
-                </div>
-                
-                <div class="notes">
-                    <h2>Notas Médicas</h2>
-                    <p>{prescription.prescription_data.get('doctor_notes', 'Sin notas adicionales')}</p>
-                </div>
-                
-                <footer class="prescription-footer">
-                    <p><strong>Válida hasta:</strong> {prescription.expires_at.strftime('%d/%m/%Y') if prescription.expires_at else 'N/A'}</p>
-                    <p class="disclaimer">Esta receta es válida únicamente con la presentación de identificación oficial.</p>
-                </footer>
-            </div>
-        </body>
-        </html>
-        """
-        
-        return html_template
-    
-    def _get_prescription_css(self) -> str:
-        """
-        Obtener CSS para la receta médica
-        """
-        return """
-        @page {
-            size: A4;
-            margin: 2cm;
-        }
-        
-        body {
-            font-family: 'Arial', sans-serif;
-            font-size: 12px;
-            line-height: 1.4;
-            color: #333;
-        }
-        
-        .prescription-container {
-            max-width: 100%;
-        }
-        
-        .prescription-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #2c5aa0;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .clinic-info h1 {
-            color: #2c5aa0;
-            font-size: 24px;
-            margin: 0;
-        }
-        
-        .clinic-info p {
-            margin: 5px 0;
-            color: #666;
-        }
-        
-        .prescription-info {
-            text-align: right;
-        }
-        
-        .prescription-info p {
-            margin: 5px 0;
-        }
-        
-        .patient-info, .doctor-info, .medications, .notes {
-            margin-bottom: 25px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-        
-        .patient-info h2, .doctor-info h2, .medications h2, .notes h2 {
-            color: #2c5aa0;
-            font-size: 16px;
-            margin: 0 0 15px 0;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 5px;
-        }
-        
-        .medication {
-            display: flex;
-            margin-bottom: 15px;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 3px;
-        }
-        
-        .med-number {
-            font-weight: bold;
-            margin-right: 15px;
-            color: #2c5aa0;
-        }
-        
-        .med-details {
-            flex: 1;
-        }
-        
-        .med-name {
-            font-weight: bold;
-            font-size: 14px;
-            color: #333;
-            margin-bottom: 5px;
-        }
-        
-        .med-dosage, .med-frequency, .med-duration, .med-instructions {
-            margin: 3px 0;
-            font-size: 11px;
-        }
-        
-        .prescription-footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            text-align: center;
-        }
-        
-        .disclaimer {
-            font-size: 10px;
-            color: #666;
-            font-style: italic;
-            margin-top: 10px;
-        }
-        
-        h2 {
-            page-break-after: avoid;
-        }
-        
-        .medication {
-            page-break-inside: avoid;
-        }
-        """
-    
-    async def _html_to_pdf(self, html_content: str, css_content: str) -> bytes:
-        """
-        Convertir HTML a PDF usando WeasyPrint
+        Generar PDF de receta médica usando ReportLab
         """
         try:
-            # Configurar fuentes
-            font_config = FontConfiguration()
+            # Crear buffer para el PDF
+            buffer = io.BytesIO()
             
-            # Generar PDF
-            html_doc = HTML(string=html_content)
-            css_doc = CSS(string=css_content, font_config=font_config)
+            # Crear documento PDF
+            doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
             
-            pdf_bytes = html_doc.write_pdf(stylesheets=[css_doc])
+            # Obtener estilos
+            styles = getSampleStyleSheet()
+            
+            # Crear estilos personalizados
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=18,
+                spaceAfter=30,
+                alignment=TA_CENTER,
+                textColor=colors.HexColor('#2c5aa0')
+            )
+            
+            heading_style = ParagraphStyle(
+                'CustomHeading',
+                parent=styles['Heading2'],
+                fontSize=14,
+                spaceAfter=12,
+                textColor=colors.HexColor('#2c5aa0')
+            )
+            
+            normal_style = ParagraphStyle(
+                'CustomNormal',
+                parent=styles['Normal'],
+                fontSize=10,
+                spaceAfter=6
+            )
+            
+            # Construir contenido del PDF
+            story = []
+            
+            # Título principal
+            story.append(Paragraph("SMD VITAL", title_style))
+            story.append(Paragraph("Sistema Médico Digital", normal_style))
+            story.append(Paragraph("Receta Médica", normal_style))
+            story.append(Spacer(1, 20))
+            
+            # Información de la receta
+            prescription_info = [
+                ['No. Receta:', prescription.id[:8]],
+                ['Fecha:', prescription.created_at.strftime('%d/%m/%Y')],
+                ['Válida hasta:', prescription.expires_at.strftime('%d/%m/%Y') if prescription.expires_at else 'N/A']
+            ]
+            
+            prescription_table = Table(prescription_info, colWidths=[2*inch, 3*inch])
+            prescription_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            
+            story.append(prescription_table)
+            story.append(Spacer(1, 20))
+            
+            # Datos del paciente
+            story.append(Paragraph("Datos del Paciente", heading_style))
+            patient_info = f"""
+            <b>Nombre:</b> {patient_data.get('name', 'N/A')}<br/>
+            <b>Teléfono:</b> {patient_data.get('phone', 'N/A')}
+            """
+            story.append(Paragraph(patient_info, normal_style))
+            story.append(Spacer(1, 15))
+            
+            # Datos del doctor
+            story.append(Paragraph("Datos del Médico", heading_style))
+            doctor_info = f"""
+            <b>Nombre:</b> {doctor_data.get('name', 'N/A')}<br/>
+            <b>Especialidad:</b> {doctor_data.get('specialty', 'N/A')}<br/>
+            <b>Licencia:</b> {doctor_data.get('license', 'N/A')}
+            """
+            story.append(Paragraph(doctor_info, normal_style))
+            story.append(Spacer(1, 15))
+            
+            # Medicamentos
+            story.append(Paragraph("Medicamentos Recetados", heading_style))
+            
+            # Crear tabla de medicamentos
+            med_data = [['#', 'Medicamento', 'Dosis', 'Frecuencia', 'Duración', 'Instrucciones']]
+            
+            for i, med in enumerate(prescription.prescription_data['medications'], 1):
+                med_data.append([
+                    str(i),
+                    med['name'],
+                    med['dosage'],
+                    med['frequency'],
+                    med['duration'],
+                    med['instructions']
+                ])
+            
+            med_table = Table(med_data, colWidths=[0.5*inch, 1.5*inch, 1*inch, 1*inch, 1*inch, 2*inch])
+            med_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c5aa0')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            
+            story.append(med_table)
+            story.append(Spacer(1, 15))
+            
+            # Notas médicas
+            if prescription.prescription_data.get('doctor_notes'):
+                story.append(Paragraph("Notas Médicas", heading_style))
+                story.append(Paragraph(prescription.prescription_data['doctor_notes'], normal_style))
+                story.append(Spacer(1, 15))
+            
+            # Footer
+            story.append(Spacer(1, 30))
+            story.append(Paragraph("Esta receta es válida únicamente con la presentación de identificación oficial.", 
+                                 ParagraphStyle('Disclaimer', parent=styles['Normal'], fontSize=8, 
+                                               textColor=colors.grey, alignment=TA_CENTER, fontStyle='italic')))
+            
+            # Construir PDF
+            doc.build(story)
+            
+            # Obtener bytes del PDF
+            pdf_bytes = buffer.getvalue()
+            buffer.close()
             
             return pdf_bytes
             
         except Exception as e:
-            logger.error(f"Error converting HTML to PDF: {e}")
+            logger.error(f"Error generating PDF with ReportLab: {e}")
             raise

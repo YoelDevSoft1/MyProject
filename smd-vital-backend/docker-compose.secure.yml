@@ -1,0 +1,535 @@
+# SMD Vital Backend - Docker Compose Seguro y Optimizado
+# =====================================================
+# Configuración con seguridad mejorada, secrets management y redes segmentadas
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database - Configuración Segura
+  postgres:
+    image: postgres:15-alpine
+    container_name: smd_vital_postgres
+    environment:
+      POSTGRES_DB: smdvital
+      POSTGRES_USER: smdvital
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - smd_vital_database
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smdvital -d smdvital"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Redis Cache & Session Store - Configuración Segura
+  redis:
+    image: redis:7-alpine
+    container_name: smd_vital_redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    secrets:
+      - redis_password
+    networks:
+      - smd_vital_database
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # RabbitMQ Message Broker - Configuración Segura
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: smd_vital_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: smdvital
+      RABBITMQ_DEFAULT_PASS_FILE: /run/secrets/rabbitmq_password
+      RABBITMQ_DEFAULT_VHOST: smdvital
+    secrets:
+      - rabbitmq_password
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - smd_vital_internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Authentication Service - Configuración Segura
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile.secure
+    container_name: smd_vital_auth
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:${POSTGRES_PASSWORD}@postgres:5432/smdvital_auth
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - JWT_ALGORITHM=RS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=15
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      - ENVIRONMENT=production
+      - DEBUG=false
+    secrets:
+      - jwt_secret
+      - postgres_password
+      - redis_password
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/auth:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_vital_internal
+      - smd_vital_api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # User Service - Configuración Segura
+  user-service:
+    build:
+      context: ./services/users
+      dockerfile: Dockerfile.secure
+    container_name: smd_vital_users
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:${POSTGRES_PASSWORD}@postgres:5432/smdvital_users
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - ENVIRONMENT=production
+      - DEBUG=false
+    secrets:
+      - postgres_password
+      - redis_password
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./services/users:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_vital_internal
+      - smd_vital_api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Appointment Service - Configuración Segura
+  appointment-service:
+    build:
+      context: ./services/appointments
+      dockerfile: Dockerfile.secure
+    container_name: smd_vital_appointments
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:${POSTGRES_PASSWORD}@postgres:5432/smdvital_appointments
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - RABBITMQ_URL=amqp://smdvital:${RABBITMQ_PASSWORD}@rabbitmq:5672/smdvital
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - USER_SERVICE_URL=http://user-service:8002
+      - ENVIRONMENT=production
+      - DEBUG=false
+    secrets:
+      - postgres_password
+      - redis_password
+      - rabbitmq_password
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    volumes:
+      - ./services/appointments:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_vital_internal
+      - smd_vital_api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Notification Service - Configuración Segura
+  notification-service:
+    build:
+      context: ./services/notifications
+      dockerfile: Dockerfile.secure
+    container_name: smd_vital_notifications
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:${POSTGRES_PASSWORD}@postgres:5432/smdvital_notifications
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/3
+      - RABBITMQ_URL=amqp://smdvital:${RABBITMQ_PASSWORD}@rabbitmq:5672/smdvital
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
+      - ENVIRONMENT=production
+      - DEBUG=false
+    secrets:
+      - postgres_password
+      - redis_password
+      - rabbitmq_password
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./services/notifications:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_vital_internal
+      - smd_vital_api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Medical Records Service - Configuración Segura
+  medical-records-service:
+    build:
+      context: ./services/medical-records
+      dockerfile: Dockerfile.secure
+    container_name: smd_vital_medical_records
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:${POSTGRES_PASSWORD}@postgres:5432/smdvital_medical_records
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/4
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - USER_SERVICE_URL=http://user-service:8002
+      - ENVIRONMENT=production
+      - DEBUG=false
+    secrets:
+      - postgres_password
+      - redis_password
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./services/medical-records:/app
+      - ./shared:/app/shared
+      - medical_files:/app/uploads
+    networks:
+      - smd_vital_internal
+      - smd_vital_api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Payment Service - Configuración Segura
+  payment-service:
+    build:
+      context: ./services/payments
+      dockerfile: Dockerfile.secure
+    container_name: smd_vital_payments
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:${POSTGRES_PASSWORD}@postgres:5432/smdvital_payments
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/5
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - USER_SERVICE_URL=http://user-service:8002
+      - ENVIRONMENT=production
+      - DEBUG=false
+    secrets:
+      - postgres_password
+      - redis_password
+    ports:
+      - "8006:8006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./services/payments:/app
+      - ./shared:/app/shared
+    networks:
+      - smd_vital_internal
+      - smd_vital_api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Nginx API Gateway - Configuración Segura
+  nginx:
+    image: nginx:alpine
+    container_name: smd_vital_nginx
+    ports:
+      - "8000:80"
+      - "8443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/sites-enabled:/etc/nginx/sites-enabled:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - auth-service
+      - user-service
+      - appointment-service
+      - notification-service
+      - medical-records-service
+      - payment-service
+    networks:
+      - smd_vital_api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Prometheus - Monitoreo Seguro
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: smd_vital_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus-secure.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - smd_vital_monitoring
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Grafana - Dashboards Seguros
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smd_vital_grafana
+    ports:
+      - "3005:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_SECURITY_SECRET_KEY=${GRAFANA_SECRET_KEY}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_ALLOW_ORG_CREATE=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    secrets:
+      - grafana_admin_password
+      - grafana_secret_key
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - smd_vital_monitoring
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+# Secrets Management
+secrets:
+  postgres_password:
+    external: true
+  redis_password:
+    external: true
+  rabbitmq_password:
+    external: true
+  jwt_secret:
+    external: true
+  stripe_secret_key:
+    external: true
+  grafana_admin_password:
+    external: true
+  grafana_secret_key:
+    external: true
+
+# Redes Segmentadas por Seguridad
+networks:
+  smd_vital_database:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  smd_vital_internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+  smd_vital_api:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
+  smd_vital_monitoring:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.23.0.0/24
+
+# Volumes Persistentes
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  medical_files:
+    driver: local
+

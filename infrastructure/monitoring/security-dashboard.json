@@ -1,0 +1,468 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "SMD Vital Security Dashboard",
+    "tags": ["security", "smd-vital", "compliance"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Security Events Overview",
+        "type": "stat",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "sum(rate(security_events[5m]))",
+            "legendFormat": "Security Events/sec",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Failed Login Attempts",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "rate(auth_failed_logins[5m])",
+            "legendFormat": "Failed Logins/sec",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Attempts/sec",
+            "min": 0
+          }
+        ],
+        "thresholds": [
+          {
+            "value": 5,
+            "colorMode": "critical",
+            "op": "gt"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "PHI Access Events",
+        "type": "table",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "targets": [
+          {
+            "expr": "phi_access_events",
+            "format": "table",
+            "refId": "A"
+          }
+        ],
+        "columns": [
+          {
+            "text": "User ID",
+            "value": "user_id"
+          },
+          {
+            "text": "Patient ID",
+            "value": "patient_id"
+          },
+          {
+            "text": "Record Type",
+            "value": "record_type"
+          },
+          {
+            "text": "Action",
+            "value": "action"
+          },
+          {
+            "text": "Timestamp",
+            "value": "timestamp"
+          },
+          {
+            "text": "IP Address",
+            "value": "ip_address"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "API Security Metrics",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "rate(api_requests{status=\"401\"}[5m])",
+            "legendFormat": "Unauthorized Requests/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(api_requests{status=\"403\"}[5m])",
+            "legendFormat": "Forbidden Requests/sec",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(api_requests{status=\"429\"}[5m])",
+            "legendFormat": "Rate Limited Requests/sec",
+            "refId": "C"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Requests/sec",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Data Security Events",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "rate(data_export_requests[5m])",
+            "legendFormat": "Data Export Requests/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(data_access_events[5m])",
+            "legendFormat": "Data Access Events/sec",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(unauthorized_file_access[5m])",
+            "legendFormat": "Unauthorized File Access/sec",
+            "refId": "C"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Events/sec",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Security Alerts by Severity",
+        "type": "piechart",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        },
+        "targets": [
+          {
+            "expr": "sum by (severity) (security_alerts)",
+            "legendFormat": "{{severity}}",
+            "refId": "A"
+          }
+        ],
+        "pieType": "pie",
+        "legend": {
+          "show": true,
+          "values": true,
+          "current": true,
+          "max": true,
+          "min": true,
+          "avg": true
+        }
+      },
+      {
+        "id": 7,
+        "title": "Network Security Events",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 24
+        },
+        "targets": [
+          {
+            "expr": "rate(suspicious_network_traffic[5m])",
+            "legendFormat": "Suspicious Traffic/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(port_scan_attempts[5m])",
+            "legendFormat": "Port Scan Attempts/sec",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(ddos_attempts[5m])",
+            "legendFormat": "DDoS Attempts/sec",
+            "refId": "C"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Events/sec",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Application Security Events",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 32
+        },
+        "targets": [
+          {
+            "expr": "rate(sql_injection_attempts[5m])",
+            "legendFormat": "SQL Injection Attempts/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(xss_attempts[5m])",
+            "legendFormat": "XSS Attempts/sec",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(csrf_attempts[5m])",
+            "legendFormat": "CSRF Attempts/sec",
+            "refId": "C"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Attempts/sec",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Container Security Events",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 32
+        },
+        "targets": [
+          {
+            "expr": "rate(container_privilege_escalation_attempts[5m])",
+            "legendFormat": "Privilege Escalation Attempts/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(container_resource_abuse[5m])",
+            "legendFormat": "Resource Abuse Events/sec",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(container_security_violations[5m])",
+            "legendFormat": "Security Violations/sec",
+            "refId": "C"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Events/sec",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Compliance Status",
+        "type": "stat",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 40
+        },
+        "targets": [
+          {
+            "expr": "compliance_status",
+            "legendFormat": "Compliance Status",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 0.8
+                },
+                {
+                  "color": "red",
+                  "value": 0.6
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Security Events Timeline",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 48
+        },
+        "targets": [
+          {
+            "expr": "rate(security_events[1m])",
+            "legendFormat": "Security Events/min",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Events/min",
+            "min": 0
+          }
+        ],
+        "xAxes": [
+          {
+            "type": "time"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Top Security Threats",
+        "type": "table",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 56
+        },
+        "targets": [
+          {
+            "expr": "topk(10, sum by (threat_type) (rate(security_events[5m])))",
+            "format": "table",
+            "refId": "A"
+          }
+        ],
+        "columns": [
+          {
+            "text": "Threat Type",
+            "value": "threat_type"
+          },
+          {
+            "text": "Events/sec",
+            "value": "Value"
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "environment",
+          "type": "query",
+          "query": "label_values(security_events, environment)",
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true
+        },
+        {
+          "name": "service",
+          "type": "query",
+          "query": "label_values(security_events, service)",
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Security Incidents",
+          "datasource": "Prometheus",
+          "expr": "security_incidents",
+          "iconColor": "red",
+          "enable": true
+        },
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "expr": "deployment_events",
+          "iconColor": "blue",
+          "enable": true
+        }
+      ]
+    }
+  }
+}
+
+
+

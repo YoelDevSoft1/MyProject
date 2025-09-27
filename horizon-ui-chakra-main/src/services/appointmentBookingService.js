@@ -50,7 +50,7 @@ class AppointmentBookingService {
 
       console.log('🔍 [AppointmentBookingService] Parámetros:', params);
 
-      const response = await apiService.request('/api/doctors/search', {
+      const response = await this.apiService.makeRequest('/api/doctors/search', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -137,7 +137,7 @@ class AppointmentBookingService {
       console.log('🔧 [AppointmentBookingService] Parámetros de la petición:', requestParams);
       console.log('🔧 [AppointmentBookingService] URL completa:', `/api/appointments/availability?doctor_id=${uuid}&date=${formattedDate}`);
 
-      const response = await apiService.request('/api/appointments/availability', {
+      const response = await this.apiService.makeRequest('/api/appointments/availability', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -180,7 +180,7 @@ class AppointmentBookingService {
       console.log('🔧 [AppointmentBookingService] Datos de reserva:', reservationData);
       console.log('🔧 [AppointmentBookingService] Token:', token ? 'Presente' : 'Ausente');
       
-      const response = await apiService.request('/api/appointments/reserve', {
+      const response = await this.apiService.makeRequest('/api/appointments/reserve', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -192,7 +192,13 @@ class AppointmentBookingService {
       console.log('🔧 [AppointmentBookingService] Respuesta de reserva:', response);
 
       if (response.success) {
-        const reservation = response.data;
+        // response.data contiene {success: true, data: {...}} del backend
+        // Necesitamos extraer los datos reales de la reserva
+        const reservation = response.data.data;
+        
+        console.log('🔧 [AppointmentBookingService] Reservation data recibida:', reservation);
+        console.log('🔧 [AppointmentBookingService] Reservation ID en data:', reservation.reservation_id);
+        console.log('🔧 [AppointmentBookingService] Estructura completa de reservation:', JSON.stringify(reservation, null, 2));
         
         // Guardar en cache local
         this.activeReservations.set(reservation.reservation_id, {
@@ -206,7 +212,7 @@ class AppointmentBookingService {
 
         return {
           success: true,
-          data: reservation
+          data: reservation // reservation contiene los datos reales de la reserva
         };
       }
 
@@ -246,7 +252,7 @@ class AppointmentBookingService {
         };
       }
 
-      const response = await apiService.request('/api/appointments/confirm', {
+      const response = await this.apiService.makeRequest('/api/appointments/confirm', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -286,7 +292,7 @@ class AppointmentBookingService {
    */
   async cancelReservation(reservationId, token) {
     try {
-      const response = await apiService.request(`/api/appointments/reserve/${reservationId}`, {
+      const response = await this.apiService.makeRequest(`/api/appointments/reserve/${reservationId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -408,7 +414,7 @@ class AppointmentBookingService {
    */
   async getMedicalServices(token, filters = {}) {
     try {
-      const response = await apiService.request('/api/medical-services', {
+      const response = await this.apiService.makeRequest('/api/medical-services', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -435,7 +441,7 @@ class AppointmentBookingService {
    */
   async validateSlotAvailability(doctorId, slotDateTime, token) {
     try {
-      const response = await apiService.request('/api/appointments/validate-slot', {
+      const response = await this.apiService.makeRequest('/api/appointments/validate-slot', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

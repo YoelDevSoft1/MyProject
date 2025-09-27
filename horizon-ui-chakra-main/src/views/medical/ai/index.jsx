@@ -34,86 +34,199 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
+  Input,
+  Spinner,
+  useToast,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  Code,
+  CodeBlock,
+  Tooltip,
+  Switch,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
 } from "@chakra-ui/react";
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 // Assets
-import { MdSend, MdHistory, MdSettings } from "react-icons/md";
-import { FaRobot, FaBrain, FaStethoscope, FaPills, FaImage, FaHeartbeat } from "react-icons/fa";
+import { MdSend, MdHistory, MdSettings, MdRefresh, MdDownload, MdUpload, MdChat } from "react-icons/md";
+import { FaRobot, FaBrain, FaStethoscope, FaPills, FaImage, FaHeartbeat, FaFileMedical, FaChartLine } from "react-icons/fa";
+// Services
+import { useAuth } from "contexts/AuthContext";
+import apiService from "services/apiService";
 
 export default function AIMedical() {
+  // Auth context
+  const { token, isAuthenticated } = useAuth();
+  const toast = useToast();
+  
   // Chakra Color Mode
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const textColorSecondary = useColorModeValue("secondaryGray.600", "secondaryGray.400");
   const queryBg = useColorModeValue("gray.50", "gray.700");
   const queryBorder = useColorModeValue("gray.200", "gray.600");
+  const cardBg = useColorModeValue("white", "navy.800");
+  const boxShadow = useColorModeValue("14px 17px 40px 4px rgba(112, 144, 176, 0.08)", "14px 17px 40px 4px rgba(112, 144, 176, 0.08)");
+  
+  // Modal states
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isStreamOpen, onOpen: onStreamOpen, onClose: onStreamClose } = useDisclosure();
+  
+  // AI States
   const [selectedTool, setSelectedTool] = useState(null);
   const [query, setQuery] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [aiResponse, setAiResponse] = useState("");
+  const [streamingResponse, setStreamingResponse] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [selectedModel, setSelectedModel] = useState("gpt-3.5-turbo");
+  const [selectedWorkflow, setSelectedWorkflow] = useState("diagnosis_workflow");
+  const [aiModels, setAiModels] = useState([]);
+  const [workflows, setWorkflows] = useState([]);
+  const [aiStats, setAiStats] = useState({
+    totalQueries: 0,
+    successfulQueries: 0,
+    averageConfidence: 0,
+    totalProcessingTime: 0
+  });
+  const [queryHistory, setQueryHistory] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
+  // Refs
+  const streamingRef = useRef(null);
+  const wsRef = useRef(null);
 
   // Herramientas de IA SMD VITAL disponibles
   const aiTools = [
     {
       id: 1,
       name: "Asistente de Diagnóstico SMD VITAL",
-      description: "Analiza síntomas y sugiere posibles diagnósticos SMD VITAL",
+      description: "Analiza síntomas y sugiere posibles diagnósticos usando LangGraph",
       icon: FaStethoscope,
       status: "active",
       usage: 95,
       lastUsed: "2024-01-20",
-      category: "diagnosis"
+      category: "diagnosis",
+      workflow: "diagnosis_workflow"
     },
     {
       id: 2,
       name: "Recomendador de Medicamentos SMD VITAL",
-      description: "Sugiere medicamentos SMD VITAL basados en síntomas y alergias",
+      description: "Sugiere medicamentos basados en síntomas y alergias con IA",
       icon: FaPills,
       status: "active",
       usage: 88,
       lastUsed: "2024-01-19",
-      category: "medication"
+      category: "medication",
+      workflow: "medication_workflow"
     },
     {
       id: 3,
       name: "Analizador de Imágenes SMD VITAL",
-      description: "Analiza radiografías, tomografías y resonancias SMD VITAL",
+      description: "Analiza radiografías, tomografías y resonancias con IA",
       icon: FaImage,
       status: "active",
       usage: 82,
       lastUsed: "2024-01-18",
-      category: "imaging"
+      category: "imaging",
+      workflow: "imaging_workflow"
     },
     {
       id: 4,
       name: "Monitor de Signos Vitales SMD VITAL",
-      description: "Monitorea y analiza signos vitales SMD VITAL en tiempo real",
+      description: "Monitorea y analiza signos vitales en tiempo real",
       icon: FaHeartbeat,
       status: "active",
       usage: 96,
       lastUsed: "2024-01-20",
-      category: "monitoring"
+      category: "monitoring",
+      workflow: "monitoring_workflow"
     },
     {
       id: 5,
       name: "Asistente de Documentación SMD VITAL",
-      description: "Ayuda a generar notas médicas y reportes SMD VITAL",
-      icon: FaBrain,
-      status: "maintenance",
+      description: "Ayuda a generar notas médicas y reportes con IA",
+      icon: FaFileMedical,
+      status: "active",
       usage: 65,
       lastUsed: "2024-01-15",
-      category: "documentation"
+      category: "documentation",
+      workflow: "documentation_workflow"
     },
     {
       id: 6,
       name: "Predictor de Riesgos SMD VITAL",
-      description: "Evalúa riesgos de salud SMD VITAL basados en historial",
-      icon: FaRobot,
+      description: "Evalúa riesgos de salud basados en historial con IA",
+      icon: FaChartLine,
       status: "active",
       usage: 88,
       lastUsed: "2024-01-17",
-      category: "prediction"
+      category: "prediction",
+      workflow: "prediction_workflow"
     }
   ];
+
+  // Cargar datos de IA al montar el componente
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      loadAIData();
+    }
+  }, [isAuthenticated, token]);
+
+  // Cargar datos de IA
+  const loadAIData = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Cargar modelos y workflows en paralelo
+      const [modelsResponse, workflowsResponse] = await Promise.all([
+        apiService.getAIModels(token),
+        apiService.getAIWorkflows(token)
+      ]);
+      
+      setAiModels(modelsResponse.models || []);
+      setWorkflows(workflowsResponse.workflows || []);
+      
+      // Calcular estadísticas
+      calculateAIStats();
+      
+    } catch (err) {
+      setError("Error cargando datos de IA: " + (err.message || "Error desconocido"));
+      toast({
+        title: "Error de IA",
+        description: "No se pudieron cargar los datos de IA",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Calcular estadísticas de IA
+  const calculateAIStats = () => {
+    // Simular estadísticas basadas en historial
+    const totalQueries = queryHistory.length;
+    const successfulQueries = queryHistory.filter(q => q.status === 'completed').length;
+    const averageConfidence = queryHistory.length > 0 
+      ? queryHistory.reduce((sum, q) => sum + (q.confidence || 0), 0) / queryHistory.length 
+      : 0;
+    
+    setAiStats({
+      totalQueries,
+      successfulQueries,
+      averageConfidence: Math.round(averageConfidence * 100) / 100,
+      totalProcessingTime: queryHistory.reduce((sum, q) => sum + (q.processingTime || 0), 0)
+    });
+  };
 
   // Historial de consultas SMD VITAL recientes
   const recentQueries = [
@@ -172,16 +285,150 @@ export default function AIMedical() {
     onOpen();
   };
 
-  const handleQuerySubmit = () => {
-    if (!query.trim()) return;
+  // Procesar consulta de IA
+  const handleQuerySubmit = async () => {
+    if (!query.trim() || !selectedWorkflow) return;
     
     setIsProcessing(true);
-    // Simular procesamiento
-    setTimeout(() => {
+    setError(null);
+    setAiResponse("");
+    
+    try {
+      const queryData = {
+        query_type: selectedWorkflow.replace('_workflow', ''),
+        query_text: query,
+        user_id: 'user_123', // En producción, usar ID real del usuario
+        context: {
+          model: selectedModel,
+          workflow: selectedWorkflow
+        }
+      };
+      
+      const response = await apiService.processAIQuery(queryData, token);
+      
+      setAiResponse(response.response_text);
+      
+      // Agregar a historial
+      const newQuery = {
+        id: Date.now(),
+        query: query,
+        response: response.response_text,
+        timestamp: new Date().toLocaleString('es-CO'),
+        tool: selectedWorkflow,
+        confidence: response.confidence_score,
+        status: 'completed',
+        processingTime: response.processing_time_ms
+      };
+      
+      setQueryHistory(prev => [newQuery, ...prev.slice(0, 9)]);
+      
+      toast({
+        title: "Consulta procesada",
+        description: "La consulta de IA se ha procesado exitosamente",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      
+    } catch (err) {
+      setError("Error procesando consulta: " + (err.message || "Error desconocido"));
+      toast({
+        title: "Error de IA",
+        description: "No se pudo procesar la consulta",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
       setIsProcessing(false);
-      // Aquí se procesaría la consulta con la IA
-      console.log("Procesando consulta:", query);
-    }, 2000);
+    }
+  };
+
+  // Procesar consulta con streaming
+  const handleStreamQuery = async () => {
+    if (!query.trim() || !selectedWorkflow) return;
+    
+    setIsStreaming(true);
+    setStreamingResponse("");
+    onStreamOpen();
+    
+    try {
+      const queryData = {
+        query_type: selectedWorkflow.replace('_workflow', ''),
+        query_text: query,
+        user_id: 'user_123',
+        context: {
+          model: selectedModel,
+          workflow: selectedWorkflow
+        }
+      };
+      
+      const response = await apiService.streamAIQuery(queryData, token);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'chunk') {
+                setStreamingResponse(prev => prev + data.content);
+              } else if (data.type === 'complete') {
+                setStreamingResponse(prev => prev + data.content);
+                setIsStreaming(false);
+              }
+            } catch (e) {
+              // Ignorar líneas malformadas
+            }
+          }
+        }
+      }
+      
+    } catch (err) {
+      setError("Error en streaming: " + (err.message || "Error desconocido"));
+      setIsStreaming(false);
+    }
+  };
+
+  // Conectar WebSocket para consultas en tiempo real
+  const connectWebSocket = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    
+    wsRef.current = apiService.connectAIWebSocket('user_123', token);
+    
+    wsRef.current.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'chunk') {
+        setStreamingResponse(prev => prev + data.content);
+      }
+    };
+    
+    wsRef.current.onclose = () => {
+      console.log('WebSocket cerrado');
+    };
+  };
+
+  // Enviar consulta por WebSocket
+  const sendWebSocketQuery = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'query',
+        data: {
+          query_type: selectedWorkflow.replace('_workflow', ''),
+          query_text: query,
+          user_id: 'user_123'
+        }
+      }));
+    }
   };
 
   return (
@@ -200,25 +447,46 @@ export default function AIMedical() {
             fontWeight="700" 
             color={textColor}
           >
-            IA Médica SMD VITAL
+            IA Médica SMD VITAL con LangGraph
           </Text>
           <Text 
             fontSize={{ base: "sm", md: "md" }} 
             color={textColorSecondary}
           >
-            Herramientas de inteligencia artificial SMD VITAL para asistencia médica
+            Herramientas de inteligencia artificial avanzada para asistencia médica
           </Text>
         </Box>
-        <Button
-          leftIcon={<Icon as={MdSettings} />}
-          colorScheme="ai"
-          variant="outline"
-          size={{ base: "md", md: "lg" }}
-          width={{ base: "full", lg: "auto" }}
-        >
-          Configuración SMD VITAL
-        </Button>
+        <HStack spacing={2}>
+          <Button
+            leftIcon={<Icon as={MdRefresh} />}
+            colorScheme="blue"
+            variant="outline"
+            size={{ base: "md", md: "lg" }}
+            onClick={loadAIData}
+            isLoading={isLoading}
+          >
+            Actualizar
+          </Button>
+          <Button
+            leftIcon={<Icon as={MdSettings} />}
+            colorScheme="ai"
+            variant="outline"
+            size={{ base: "md", md: "lg" }}
+            width={{ base: "full", lg: "auto" }}
+          >
+            Configuración
+          </Button>
+        </HStack>
       </Flex>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert status="error" mb="20px">
+          <AlertIcon />
+          <AlertTitle>Error de IA:</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Estadísticas de IA */}
       <Grid 
@@ -227,10 +495,10 @@ export default function AIMedical() {
         mb="20px"
       >
         <Box
-          bg={useColorModeValue("white", "navy.800")}
+          bg={cardBg}
           borderRadius="20px"
           p={{ base: "15px", md: "20px" }}
-          boxShadow="14px 17px 40px 4px rgba(112, 144, 176, 0.08)"
+          boxShadow={boxShadow}
         >
           <Stat>
             <StatLabel 
@@ -238,26 +506,26 @@ export default function AIMedical() {
               color={textColorSecondary} 
               fontWeight="700"
             >
-              Herramientas Activas
+              Modelos Disponibles
             </StatLabel>
             <StatNumber 
               fontSize={{ base: "lg", md: "2xl" }} 
               fontWeight="700" 
               color={textColor}
             >
-              {aiTools.filter(t => t.status === "active").length}
+              {aiModels.length}
             </StatNumber>
             <StatHelpText fontSize={{ base: "xs", md: "sm" }}>
               <StatArrow type="increase" />
-              12.5%
+              LangGraph
             </StatHelpText>
           </Stat>
         </Box>
         <Box
-          bg={useColorModeValue("white", "navy.800")}
+          bg={cardBg}
           borderRadius="20px"
           p={{ base: "15px", md: "20px" }}
-          boxShadow="14px 17px 40px 4px rgba(112, 144, 176, 0.08)"
+          boxShadow={boxShadow}
         >
           <Stat>
             <StatLabel 
@@ -265,26 +533,26 @@ export default function AIMedical() {
               color={textColorSecondary} 
               fontWeight="700"
             >
-              Consultas Hoy
+              Consultas Totales
             </StatLabel>
             <StatNumber 
               fontSize={{ base: "lg", md: "2xl" }} 
               fontWeight="700" 
               color={textColor}
             >
-              24
+              {aiStats.totalQueries}
             </StatNumber>
             <StatHelpText fontSize={{ base: "xs", md: "sm" }}>
               <StatArrow type="increase" />
-              8.2%
+              {aiStats.successfulQueries} exitosas
             </StatHelpText>
           </Stat>
         </Box>
         <Box
-          bg={useColorModeValue("white", "navy.800")}
+          bg={cardBg}
           borderRadius="20px"
           p={{ base: "15px", md: "20px" }}
-          boxShadow="14px 17px 40px 4px rgba(112, 144, 176, 0.08)"
+          boxShadow={boxShadow}
         >
           <Stat>
             <StatLabel 
@@ -292,26 +560,26 @@ export default function AIMedical() {
               color={textColorSecondary} 
               fontWeight="700"
             >
-              Precisión Promedio
+              Confianza Promedio
             </StatLabel>
             <StatNumber 
               fontSize={{ base: "lg", md: "2xl" }} 
               fontWeight="700" 
               color={textColor}
             >
-              87%
+              {Math.round(aiStats.averageConfidence * 100)}%
             </StatNumber>
             <StatHelpText fontSize={{ base: "xs", md: "sm" }}>
               <StatArrow type="increase" />
-              3.1%
+              IA Avanzada
             </StatHelpText>
           </Stat>
         </Box>
         <Box
-          bg={useColorModeValue("white", "navy.800")}
+          bg={cardBg}
           borderRadius="20px"
           p={{ base: "15px", md: "20px" }}
-          boxShadow="14px 17px 40px 4px rgba(112, 144, 176, 0.08)"
+          boxShadow={boxShadow}
         >
           <Stat>
             <StatLabel 
@@ -319,18 +587,18 @@ export default function AIMedical() {
               color={textColorSecondary} 
               fontWeight="700"
             >
-              Tiempo Ahorrado
+              Tiempo Promedio
             </StatLabel>
             <StatNumber 
               fontSize={{ base: "lg", md: "2xl" }} 
               fontWeight="700" 
               color={textColor}
             >
-              2.5h
+              {aiStats.totalProcessingTime > 0 ? Math.round(aiStats.totalProcessingTime / aiStats.totalQueries) : 0}ms
             </StatNumber>
             <StatHelpText fontSize={{ base: "xs", md: "sm" }}>
               <StatArrow type="increase" />
-              15.3%
+              Tiempo Real
             </StatHelpText>
           </Stat>
         </Box>
@@ -432,10 +700,10 @@ export default function AIMedical() {
 
         {/* Consulta Rápida */}
         <Box
-          bg={useColorModeValue("white", "navy.800")}
+          bg={cardBg}
           borderRadius="20px"
           p={{ base: "15px", md: "20px" }}
-          boxShadow="14px 17px 40px 4px rgba(112, 144, 176, 0.08)"
+          boxShadow={boxShadow}
         >
           <Text 
             fontSize={{ base: "md", md: "lg" }} 
@@ -443,21 +711,42 @@ export default function AIMedical() {
             color={textColor} 
             mb={{ base: "15px", md: "20px" }}
           >
-            Consulta Rápida
+            Consulta Rápida con LangGraph
           </Text>
           <VStack spacing={{ base: "10px", md: "15px" }} align="stretch">
             <FormControl>
-              <FormLabel fontSize={{ base: "sm", md: "md" }}>Herramienta</FormLabel>
+              <FormLabel fontSize={{ base: "sm", md: "md" }}>Workflow de IA</FormLabel>
               <Select 
-                placeholder="Seleccionar herramienta"
+                placeholder="Seleccionar workflow"
                 size={{ base: "sm", md: "md" }}
+                value={selectedWorkflow}
+                onChange={(e) => setSelectedWorkflow(e.target.value)}
               >
-                <option value="diagnosis">Asistente de Diagnóstico</option>
-                <option value="medication">Recomendador de Medicamentos</option>
-                <option value="imaging">Analizador de Imágenes</option>
-                <option value="monitoring">Monitor de Signos Vitales</option>
+                <option value="diagnosis_workflow">Diagnóstico Médico</option>
+                <option value="medication_workflow">Recomendación de Medicamentos</option>
+                <option value="imaging_workflow">Análisis de Imágenes</option>
+                <option value="monitoring_workflow">Monitoreo de Signos Vitales</option>
+                <option value="documentation_workflow">Documentación Médica</option>
+                <option value="prediction_workflow">Predicción de Riesgos</option>
               </Select>
             </FormControl>
+            
+            <FormControl>
+              <FormLabel fontSize={{ base: "sm", md: "md" }}>Modelo de IA</FormLabel>
+              <Select 
+                placeholder="Seleccionar modelo"
+                size={{ base: "sm", md: "md" }}
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+              >
+                {aiModels.map((model) => (
+                  <option key={model.name} value={model.name}>
+                    {model.name} ({model.provider})
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+            
             <FormControl>
               <FormLabel fontSize={{ base: "sm", md: "md" }}>Consulta</FormLabel>
               <Textarea
@@ -468,27 +757,127 @@ export default function AIMedical() {
                 size={{ base: "sm", md: "md" }}
               />
             </FormControl>
+            
+            <HStack spacing={2}>
+              <Button
+                colorScheme="blue"
+                leftIcon={<Icon as={MdSend} />}
+                onClick={handleQuerySubmit}
+                isLoading={isProcessing}
+                loadingText="Procesando..."
+                size={{ base: "sm", md: "md" }}
+                flex={1}
+              >
+                Consultar IA
+              </Button>
+              <Button
+                colorScheme="green"
+                leftIcon={<Icon as={MdChat} />}
+                onClick={handleStreamQuery}
+                isLoading={isStreaming}
+                loadingText="Streaming..."
+                size={{ base: "sm", md: "md" }}
+                flex={1}
+              >
+                Streaming
+              </Button>
+            </HStack>
+            
             <Button
-              colorScheme="ai"
-              leftIcon={<Icon as={MdSend} />}
-              onClick={handleQuerySubmit}
-              isLoading={isProcessing}
-              loadingText="Procesando..."
+              colorScheme="purple"
+              leftIcon={<Icon as={FaRobot} />}
+              onClick={connectWebSocket}
               size={{ base: "sm", md: "md" }}
               width="full"
             >
-              Consultar IA
+              Conectar WebSocket
             </Button>
           </VStack>
         </Box>
       </Grid>
 
+      {/* Respuesta de IA */}
+      {aiResponse && (
+        <Box
+          bg={cardBg}
+          borderRadius="20px"
+          p={{ base: "15px", md: "20px" }}
+          boxShadow={boxShadow}
+          mb="20px"
+        >
+          <Text 
+            fontSize={{ base: "md", md: "lg" }} 
+            fontWeight="700" 
+            color={textColor} 
+            mb={{ base: "15px", md: "20px" }}
+          >
+            Respuesta de IA
+          </Text>
+          <Box
+            bg={queryBg}
+            borderRadius="12px"
+            p={{ base: "10px", md: "15px" }}
+            border="1px solid"
+            borderColor={queryBorder}
+          >
+            <Text 
+              fontSize={{ base: "sm", md: "md" }} 
+              color={textColor}
+              whiteSpace="pre-wrap"
+            >
+              {aiResponse}
+            </Text>
+          </Box>
+        </Box>
+      )}
+
+      {/* Streaming Response */}
+      {isStreaming && (
+        <Box
+          bg={cardBg}
+          borderRadius="20px"
+          p={{ base: "15px", md: "20px" }}
+          boxShadow={boxShadow}
+          mb="20px"
+        >
+          <HStack justify="space-between" mb="15px">
+            <Text 
+              fontSize={{ base: "md", md: "lg" }} 
+              fontWeight="700" 
+              color={textColor}
+            >
+              Respuesta en Tiempo Real
+            </Text>
+            <HStack>
+              <Spinner size="sm" color="blue.500" />
+              <Text fontSize="sm" color={textColorSecondary}>Procesando...</Text>
+            </HStack>
+          </HStack>
+          <Box
+            bg={queryBg}
+            borderRadius="12px"
+            p={{ base: "10px", md: "15px" }}
+            border="1px solid"
+            borderColor={queryBorder}
+            minH="100px"
+          >
+            <Text 
+              fontSize={{ base: "sm", md: "md" }} 
+              color={textColor}
+              whiteSpace="pre-wrap"
+            >
+              {streamingResponse}
+            </Text>
+          </Box>
+        </Box>
+      )}
+
       {/* Historial de Consultas */}
       <Box
-        bg={useColorModeValue("white", "navy.800")}
+        bg={cardBg}
         borderRadius="20px"
         p={{ base: "15px", md: "20px" }}
-        boxShadow="14px 17px 40px 4px rgba(112, 144, 176, 0.08)"
+        boxShadow={boxShadow}
       >
         <HStack 
           justify="space-between" 
@@ -514,65 +903,102 @@ export default function AIMedical() {
           </Button>
         </HStack>
         <VStack spacing={{ base: "10px", md: "15px" }} align="stretch">
-          {recentQueries.map((query) => (
+          {queryHistory.length > 0 ? (
+            queryHistory.map((query) => (
+              <Box
+                key={query.id}
+                p={{ base: "10px", md: "15px" }}
+                bg={queryBg}
+                borderRadius="12px"
+                border="1px solid"
+                borderColor={queryBorder}
+              >
+                <HStack 
+                  justify="space-between" 
+                  mb={{ base: "8px", md: "10px" }}
+                  direction={{ base: "column", sm: "row" }}
+                  align={{ base: "stretch", sm: "center" }}
+                  spacing={2}
+                >
+                  <Text 
+                    fontWeight="600" 
+                    color={textColor}
+                    fontSize={{ base: "sm", md: "md" }}
+                    isTruncated
+                  >
+                    {query.tool}
+                  </Text>
+                  <HStack 
+                    spacing={{ base: "5px", md: "10px" }}
+                    wrap="wrap"
+                    justify={{ base: "center", sm: "flex-end" }}
+                  >
+                    <Badge 
+                      colorScheme={getConfidenceColor(query.confidence)} 
+                      variant="outline"
+                      size={{ base: "sm", md: "md" }}
+                    >
+                      {Math.round(query.confidence * 100)}% confianza
+                    </Badge>
+                    <Text 
+                      fontSize={{ base: "xs", md: "sm" }} 
+                      color={textColorSecondary}
+                    >
+                      {query.timestamp}
+                    </Text>
+                  </HStack>
+                </HStack>
+                <Text 
+                  fontSize={{ base: "xs", md: "sm" }} 
+                  color={textColor} 
+                  mb={{ base: "8px", md: "10px" }}
+                >
+                  <strong>Consulta:</strong> {query.query}
+                </Text>
+                <Text 
+                  fontSize={{ base: "xs", md: "sm" }} 
+                  color={textColorSecondary}
+                  noOfLines={3}
+                >
+                  <strong>Respuesta:</strong> {query.response}
+                </Text>
+                {query.processingTime && (
+                  <Text 
+                    fontSize={{ base: "xs", md: "sm" }} 
+                    color={textColorSecondary}
+                    mt={2}
+                  >
+                    <strong>Tiempo:</strong> {query.processingTime}ms
+                  </Text>
+                )}
+              </Box>
+            ))
+          ) : (
             <Box
-              key={query.id}
-              p={{ base: "10px", md: "15px" }}
+              p={{ base: "20px", md: "30px" }}
+              textAlign="center"
               bg={queryBg}
               borderRadius="12px"
               border="1px solid"
               borderColor={queryBorder}
             >
-              <HStack 
-                justify="space-between" 
-                mb={{ base: "8px", md: "10px" }}
-                direction={{ base: "column", sm: "row" }}
-                align={{ base: "stretch", sm: "center" }}
-                spacing={2}
-              >
-                <Text 
-                  fontWeight="600" 
-                  color={textColor}
-                  fontSize={{ base: "sm", md: "md" }}
-                  isTruncated
-                >
-                  {query.tool}
-                </Text>
-                <HStack 
-                  spacing={{ base: "5px", md: "10px" }}
-                  wrap="wrap"
-                  justify={{ base: "center", sm: "flex-end" }}
-                >
-                  <Badge 
-                    colorScheme={getConfidenceColor(query.confidence)} 
-                    variant="outline"
-                    size={{ base: "sm", md: "md" }}
-                  >
-                    {query.confidence}% confianza
-                  </Badge>
-                  <Text 
-                    fontSize={{ base: "xs", md: "sm" }} 
-                    color={textColorSecondary}
-                  >
-                    {query.timestamp}
-                  </Text>
-                </HStack>
-              </HStack>
+              <Icon as={FaRobot} w={8} h={8} color={textColorSecondary} mb={4} />
               <Text 
-                fontSize={{ base: "xs", md: "sm" }} 
-                color={textColor} 
-                mb={{ base: "8px", md: "10px" }}
+                fontSize={{ base: "sm", md: "md" }} 
+                color={textColorSecondary}
+                fontWeight="600"
               >
-                <strong>Consulta:</strong> {query.query}
+                No hay consultas de IA recientes
               </Text>
               <Text 
                 fontSize={{ base: "xs", md: "sm" }} 
                 color={textColorSecondary}
+                mt={2}
               >
-                <strong>Respuesta:</strong> {query.response}
+                Realiza tu primera consulta con IA para ver el historial aquí
               </Text>
             </Box>
-          ))}
+          )}
         </VStack>
       </Box>
 

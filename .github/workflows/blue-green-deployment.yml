@@ -1,0 +1,251 @@
+name: 🚀 Blue-Green Deployment
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+jobs:
+  blue-green-deploy:
+    runs-on: ubuntu-latest
+    name: Blue-Green Deployment
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+      - name: 🔍 Checkout Code
+        uses: actions/checkout@v4
+      
+      # Setup Docker Buildx
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      # Login to Container Registry
+      - name: 🔐 Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.CONTAINER_REGISTRY }}
+          username: ${{ secrets.CONTAINER_REGISTRY_USERNAME }}
+          password: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }}
+      
+      # Build and Push Images
+      - name: 🏗️ Build and Push Images
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.CONTAINER_REGISTRY }}/smd-vital:${{ github.sha }}
+            ${{ secrets.CONTAINER_REGISTRY }}/smd-vital:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # Deploy to Blue Environment
+      - name: 🔵 Deploy to Blue Environment
+        run: |
+          echo "🔵 Deploying to Blue environment..."
+          
+          # Create blue deployment
+          kubectl apply -f k8s/blue-deployment.yml
+          kubectl apply -f k8s/blue-service.yml
+          
+          # Wait for blue deployment to be ready
+          kubectl rollout status deployment/smd-vital-blue --timeout=300s
+          
+          # Run health checks on blue environment
+          ./scripts/health-check.sh blue
+          
+          echo "✅ Blue deployment completed successfully"
+      
+      # Run Integration Tests
+      - name: 🧪 Run Integration Tests
+        run: |
+          echo "🧪 Running integration tests against blue environment..."
+          
+          # Set environment variables for testing
+          export BLUE_SERVICE_URL="http://smd-vital-blue:8080"
+          export TEST_ENVIRONMENT="blue"
+          
+          # Run integration tests
+          cd smd-vital-backend
+          pytest tests/integration/ -v --tb=short
+          
+          echo "✅ Integration tests passed"
+      
+      # Run Load Tests
+      - name: 📊 Run Load Tests
+        run: |
+          echo "📊 Running load tests against blue environment..."
+          
+          # Run load tests
+          cd smd-vital-backend
+          pytest tests/load/ -v --tb=short
+          
+          echo "✅ Load tests passed"
+      
+      # Run Security Tests
+      - name: 🔒 Run Security Tests
+        run: |
+          echo "🔒 Running security tests against blue environment..."
+          
+          # Run security tests
+          cd smd-vital-backend
+          pytest tests/security/ -v --tb=short
+          
+          echo "✅ Security tests passed"
+      
+      # Switch Traffic to Blue (Green to Blue)
+      - name: 🔄 Switch Traffic to Blue
+        run: |
+          echo "🔄 Switching traffic from Green to Blue..."
+          
+          # Update service to point to blue
+          kubectl patch service smd-vital-service -p '{"spec":{"selector":{"version":"blue"}}}'
+          
+          # Wait for traffic to switch
+          sleep 30
+          
+          # Verify traffic is flowing to blue
+          ./scripts/verify-traffic.sh blue
+          
+          echo "✅ Traffic switched to Blue environment"
+      
+      # Monitor Blue Environment
+      - name: 📊 Monitor Blue Environment
+        run: |
+          echo "📊 Monitoring Blue environment for 5 minutes..."
+          
+          # Monitor for 5 minutes
+          timeout 300s ./scripts/monitor-deployment.sh blue
+          
+          echo "✅ Blue environment monitoring completed"
+      
+      # Cleanup Green Environment (if switching from green)
+      - name: 🧹 Cleanup Green Environment
+        if: success()
+        run: |
+          echo "🧹 Cleaning up Green environment..."
+          
+          # Scale down green deployment
+          kubectl scale deployment smd-vital-green --replicas=0
+          
+          # Wait for green pods to terminate
+          kubectl wait --for=delete pod -l version=green --timeout=300s
+          
+          echo "✅ Green environment cleaned up"
+      
+      # Update Green to Blue (for next deployment)
+      - name: 🔄 Update Green to Blue
+        if: success()
+        run: |
+          echo "🔄 Updating Green environment to Blue for next deployment..."
+          
+          # Update green deployment to use blue image
+          kubectl set image deployment/smd-vital-green smd-vital=${{ secrets.CONTAINER_REGISTRY }}/smd-vital:${{ github.sha }}
+          
+          # Scale up green deployment
+          kubectl scale deployment smd-vital-green --replicas=3
+          
+          # Wait for green deployment to be ready
+          kubectl rollout status deployment/smd-vital-green --timeout=300s
+          
+          echo "✅ Green environment updated to Blue"
+      
+      # Rollback on Failure
+      - name: 🔄 Rollback on Failure
+        if: failure()
+        run: |
+          echo "🔄 Rolling back to previous version..."
+          
+          # Switch traffic back to green
+          kubectl patch service smd-vital-service -p '{"spec":{"selector":{"version":"green"}}}'
+          
+          # Scale down blue deployment
+          kubectl scale deployment smd-vital-blue --replicas=0
+          
+          # Wait for traffic to switch back
+          sleep 30
+          
+          # Verify rollback
+          ./scripts/verify-traffic.sh green
+          
+          echo "✅ Rollback completed"
+          
+          # Send notification
+          curl -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+            -H 'Content-type: application/json' \
+            --data '{
+              "text": "🚨 SMD Vital Deployment Failed - Rollback Initiated",
+              "attachments": [{
+                "color": "danger",
+                "fields": [{
+                  "title": "Deployment",
+                  "value": "${{ github.sha }}",
+                  "short": true
+                }, {
+                  "title": "Environment",
+                  "value": "${{ github.event.inputs.environment || 'staging' }}",
+                  "short": true
+                }, {
+                  "title": "Status",
+                  "value": "Rollback Completed",
+                  "short": true
+                }]
+              }]
+            }'
+      
+      # Send Success Notification
+      - name: 📢 Send Success Notification
+        if: success()
+        run: |
+          echo "📢 Sending success notification..."
+          
+          curl -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+            -H 'Content-type: application/json' \
+            --data '{
+              "text": "✅ SMD Vital Deployment Successful",
+              "attachments": [{
+                "color": "good",
+                "fields": [{
+                  "title": "Deployment",
+                  "value": "${{ github.sha }}",
+                  "short": true
+                }, {
+                  "title": "Environment",
+                  "value": "${{ github.event.inputs.environment || 'staging' }}",
+                  "short": true
+                }, {
+                  "title": "Status",
+                  "value": "Deployment Completed",
+                  "short": true
+                }]
+              }]
+            }'
+      
+      # Update Deployment Status
+      - name: 📊 Update Deployment Status
+        if: always()
+        run: |
+          echo "📊 Updating deployment status..."
+          
+          # Update deployment status in database
+          curl -X POST "${{ secrets.API_BASE_URL }}/deployments/status" \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer ${{ secrets.API_TOKEN }}' \
+            -d '{
+              "deployment_id": "${{ github.sha }}",
+              "environment": "${{ github.event.inputs.environment || 'staging' }}",
+              "status": "${{ job.status }}",
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }'
+
+
+

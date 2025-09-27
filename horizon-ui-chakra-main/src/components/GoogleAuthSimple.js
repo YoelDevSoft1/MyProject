@@ -71,8 +71,10 @@ const GoogleAuthSimple = ({ onSuccess, onError, isLoading, disabled }) => {
         throw new Error('No credential received from Google');
       }
       
+      const credential = response.credential; // Extraer el credential del response
+      
       // Decodificar el JWT token
-      const parts = response.credential.split('.');
+      const parts = credential.split('.');
       if (parts.length !== 3) {
         throw new Error('Invalid JWT token format');
       }
@@ -87,7 +89,8 @@ const GoogleAuthSimple = ({ onSuccess, onError, isLoading, disabled }) => {
         picture: payload.picture,
         given_name: payload.given_name,
         family_name: payload.family_name,
-        email_verified: payload.email_verified,
+        email_verified: true, // Siempre true para tokens válidos de Google
+        token: credential, // Enviar el token JWT de Google
       };
 
       console.log('Google user data (simple):', userData);

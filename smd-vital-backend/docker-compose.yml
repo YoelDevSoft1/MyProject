@@ -1,7 +1,6 @@
 # SMD Vital Backend - Docker Compose
 # ==================================
 # Configuración adicional para docker-compose.yml
-version: '3.8'
 
 services:
   # PostgreSQL Database
@@ -58,13 +57,16 @@ services:
     container_name: smd_vital_rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: smdvital
-      RABBITMQ_DEFAULT_PASS: password
+      RABBITMQ_DEFAULT_PASS: rabbitmq_password_2024
       RABBITMQ_DEFAULT_VHOST: smdvital
+      # Configuración robusta para eliminar warnings
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit log_levels [{connection,error},{channel,error},{queue,error}]"
     ports:
       - "5672:5672"   # AMQP port
       - "15672:15672" # Management UI
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./config/rabbitmq_simple.conf:/etc/rabbitmq/rabbitmq.conf:ro
     networks:
       - smd-vital-network
     restart: unless-stopped
@@ -73,6 +75,87 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Ollama - Modelos de IA Gratuitos - OPTIMIZADO PARA VELOCIDAD
+  ollama:
+    image: ollama/ollama:latest
+    container_name: smd_vital_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./config/ollama.conf:/etc/ollama/ollama.conf
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+      - OLLAMA_NUM_PARALLEL=4          # Procesar 4 requests en paralelo
+      - OLLAMA_MAX_LOADED_MODELS=2      # Mantener 2 modelos cargados
+      - OLLAMA_FLASH_ATTENTION=1        # Habilitar flash attention
+      - OLLAMA_GPU_LAYERS=0             # Usar CPU optimizado
+    networks:
+      - smd-vital-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 16G                   # Aumentado a 16GB
+          cpus: '6.0'                   # Usar todos los CPUs disponibles
+        reservations:
+          memory: 8G                    # Reservar 8GB mínimo
+          cpus: '3.0'                   # Reservar 3 CPUs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # AI LangGraph Service
+  ai-langgraph:
+    build:
+      context: ./services/ai-langgraph
+      dockerfile: Dockerfile
+    container_name: smd_vital_ai_langgraph
+    ports:
+      - "8008:8008"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_ai
+      - REDIS_URL=redis://:redis_password_2024@redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - FREE_AI_ENABLED=true
+      - DEFAULT_MODEL=phi
+    volumes:
+      - ./services/ai-langgraph/logs:/app/logs
+      - ./services/ai-langgraph/temp:/app/temp
+      - ./services/ai-langgraph/models:/app/models
+      - ./services/ai-langgraph/data:/app/data
+    depends_on:
+      - postgres
+      - redis
+      - ollama
+    networks:
+      - smd-vital-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
 
   # Configuración mejorada de Nginx
   nginx:
@@ -82,7 +165,7 @@ services:
       - "8000:80"
       - "8443:443"
     volumes:
-      - ./config/nginx.conf:/etc/nginx/nginx.conf
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./config/nginx/sites-enabled:/etc/nginx/sites-enabled
       - ./ssl:/etc/nginx/ssl
     depends_on:
@@ -92,6 +175,8 @@ services:
       - notification-service
       - medical-records-service
       - payment-service
+      - health-metrics-service
+      - ai-langgraph
     networks:
       - smd-vital-network
     restart: unless-stopped
@@ -265,12 +350,10 @@ services:
       dockerfile: Dockerfile
     container_name: smd_vital_payments
     environment:
-      - DATABASE_URL=postgresql+asyncpg://smdvital:smdvital_password_2024@postgres:5432/smdvital_payments
+      - DATABASE_URL=postgresql://smdvital:smdvital_password_2024@postgres:5432/smdvital_payments
       - REDIS_URL=redis://:redis_password_2024@redis:6379/5
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - PSE_MERCHANT_ID=${PSE_MERCHANT_ID}
-      - PSE_API_KEY=${PSE_API_KEY}
       - AUTH_SERVICE_URL=http://auth-service:8001
       - USER_SERVICE_URL=http://user-service:8002
       - ENVIRONMENT=development
@@ -291,15 +374,65 @@ services:
       - smd-vital-network
     restart: unless-stopped
 
+  # Health Metrics Service
+  health-metrics-service:
+    build:
+      context: ./services/medical-records
+      dockerfile: Dockerfile
+    container_name: smd_vital_health_metrics
+    environment:
+      - DATABASE_URL=postgresql://smdvital:smdvital_password_2024@postgres:5432/smdvital_medical_records
+      - REDIS_URL=redis://:redis_password_2024@redis:6379/6
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - USER_SERVICE_URL=http://user-service:8002
+      - ENVIRONMENT=development
+      - DEBUG=true
+    ports:
+      - "8007:8007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./services/medical-records:/app
+      - ./shared:/app/shared
+    networks:
+      - smd-vital-network
+    restart: unless-stopped
+
   # Celery Worker con configuración de microservicios
   celery-worker:
     build: 
       context: ./services/notifications
       dockerfile: Dockerfile.celery
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      appointment-service:
+        condition: service_healthy
     environment:
-      - CELERY_BROKER_URL=amqp://smdvital:password@rabbitmq:5672/smdvital
-      - CELERY_RESULT_BACKEND=redis://redis:6379/3
+      - CELERY_BROKER_URL=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital
+      - CELERY_RESULT_BACKEND=redis://:redis_password_2024@redis:6379/3
       - DATABASE_URL=postgresql://smdvital:password@postgres:5432/smdvital
+      # Optimizaciones de conexión - BASED ON WEB RESEARCH
+      - CELERY_BROKER_HEARTBEAT=30
+      - CELERY_BROKER_POOL_LIMIT=10
+      - CELERY_BROKER_CONNECTION_TIMEOUT=30
+      - CELERY_BROKER_CONNECTION_RETRY=10
+      - CELERY_BROKER_CONNECTION_RETRY_DELAY=5
+      - CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=true
+      - CELERY_BROKER_CONNECTION_MAX_RETRIES=10
       
       # Service Discovery
       - USER_SERVICE_URL=http://user-service:8002
@@ -317,16 +450,6 @@ services:
       # Logging
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - LOG_LEVEL=INFO
-      
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
-      - user-service
-      - notification-service
-      - appointment-service
-      - jaeger
-      - elasticsearch
     networks:
       - smd-vital-network
     volumes:
@@ -349,8 +472,8 @@ services:
       dockerfile: Dockerfile.celery-beat
     container_name: smd_vital_celery_beat
     environment:
-      - CELERY_BROKER_URL=amqp://smdvital:password@rabbitmq:5672/smdvital
-      - CELERY_RESULT_BACKEND=redis://redis:6379/3
+      - CELERY_BROKER_URL=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital
+      - CELERY_RESULT_BACKEND=redis://:redis_password_2024@redis:6379/3
       - DATABASE_URL=postgresql://smdvital:password@postgres:5432/smdvital
       - BEAT_SCHEDULE_FILE=/app/celerybeat-schedule
     depends_on:
@@ -375,8 +498,8 @@ services:
       dockerfile: Dockerfile.flower
     container_name: smd_vital_flower
     environment:
-      - CELERY_BROKER_URL=amqp://smdvital:password@rabbitmq:5672/smdvital
-      - CELERY_RESULT_BACKEND=redis://redis:6379/3
+      - CELERY_BROKER_URL=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital
+      - CELERY_RESULT_BACKEND=redis://:redis_password_2024@redis:6379/3
     ports:
       - "5555:5555"
     depends_on:
@@ -395,7 +518,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./infrastructure/monitoring/prometheus.yml/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -422,8 +545,14 @@ services:
     ports:
       - "3005:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-smdvital_grafana_2024}
+      - GF_SECURITY_SECRET_KEY=${GRAFANA_SECRET_KEY:-smdvital_grafana_secret_key_2024}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_ALLOW_ORG_CREATE=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/smd-vital-overview.json
       
       
     volumes:
@@ -490,8 +619,12 @@ services:
   logstash:
     image: docker.elastic.co/logstash/logstash:8.11.0
     container_name: smd_vital_logstash
+    ports:
+      - "5000:5000"  # TCP input para logs
+      - "5044:5044"  # Beats input
     volumes:
-      - ./infrastructure/logging/logstash.conf/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./infrastructure/monitoring/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./infrastructure/monitoring/elasticsearch-template.json:/usr/share/logstash/templates/smd-vital-logs.json
     depends_on:
       - elasticsearch
     networks:
@@ -520,7 +653,10 @@ volumes:
     driver: local
   elasticsearch_data:
     driver: local
+    
   medical_files:
     driver: local
   celery-beat-schedule:
+    driver: local
+  ollama_data:
     driver: local

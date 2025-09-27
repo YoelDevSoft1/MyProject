@@ -1,0 +1,190 @@
+================================================================================
+SMD VITAL - ANÁLISIS DE SCRIPTS ALEMBIC
+================================================================================
+Fecha de análisis: 2025-09-25 16:46:56
+
+📋 RESUMEN EJECUTIVO
+----------------------------------------
+• Servicios analizados: 6
+• Servicios con migraciones: 6
+• Servicios con configuración completa: 6
+• Servicios con simulación exitosa: 0
+• Problemas identificados: 10
+
+🔍 ANÁLISIS POR SERVICIO
+----------------------------------------
+
+📦 AUTH
+--------------------
+  Migraciones: 2
+  Migración inicial: ✅
+  Última revisión: 002
+  Cadena completa: ✅
+  Configuración: complete
+  Alembic dir: ✅
+  alembic.ini: ✅
+  env.py: ✅
+  versions/: ✅
+  Simulación: failed
+    Upgrade error: Unknown
+    Downgrade error: Unknown
+
+📦 APPOINTMENTS
+--------------------
+  Migraciones: 1
+  Migración inicial: ✅
+  Última revisión: ceaa5a577438
+  Cadena completa: ✅
+  Configuración: complete
+  Alembic dir: ✅
+  alembic.ini: ✅
+  env.py: ✅
+  versions/: ✅
+  Simulación: failed
+    Downgrade error: Unknown
+
+📦 MEDICAL-RECORDS
+--------------------
+  Migraciones: 1
+  Migración inicial: ✅
+  Última revisión: 7eb086d8a208
+  Cadena completa: ✅
+  Configuración: complete
+  Alembic dir: ✅
+  alembic.ini: ✅
+  env.py: ✅
+  versions/: ✅
+  Simulación: failed
+    Upgrade error: Unknown
+    Downgrade error: Unknown
+
+📦 NOTIFICATIONS
+--------------------
+  Migraciones: 1
+  Migración inicial: ✅
+  Última revisión: 6e7a0fdc03f1
+  Cadena completa: ✅
+  Configuración: complete
+  Alembic dir: ✅
+  alembic.ini: ✅
+  env.py: ✅
+  versions/: ✅
+  Simulación: failed
+    Upgrade error: Unknown
+    Downgrade error: Unknown
+
+📦 PAYMENTS
+--------------------
+  Migraciones: 1
+  Migración inicial: ✅
+  Última revisión: 1cdbfd25599c
+  Cadena completa: ✅
+  Configuración: complete
+  Alembic dir: ✅
+  alembic.ini: ✅
+  env.py: ✅
+  versions/: ✅
+  Simulación: failed
+    Upgrade error: Unknown
+    Downgrade error: Unknown
+
+📦 USERS
+--------------------
+  Migraciones: 1
+  Migración inicial: ✅
+  Última revisión: 5b0ba9a60226
+  Cadena completa: ✅
+  Configuración: complete
+  Alembic dir: ✅
+  alembic.ini: ✅
+  env.py: ✅
+  versions/: ✅
+  Simulación: failed
+    Downgrade error: Unknown
+
+⚠️  PROBLEMAS IDENTIFICADOS
+----------------------------------------
+  ❌ auth: Fallo en simulación de upgrade
+  ❌ auth: Fallo en simulación de downgrade
+  ❌ appointments: Fallo en simulación de downgrade
+  ❌ medical-records: Fallo en simulación de upgrade
+  ❌ medical-records: Fallo en simulación de downgrade
+  ❌ notifications: Fallo en simulación de upgrade
+  ❌ notifications: Fallo en simulación de downgrade
+  ❌ payments: Fallo en simulación de upgrade
+  ❌ payments: Fallo en simulación de downgrade
+  ❌ users: Fallo en simulación de downgrade
+
+🔧 RECOMENDACIONES
+----------------------------------------
+  📋 Recomendaciones generales:
+    • Implementar migraciones de datos para cambios estructurales
+    • Agregar validaciones de integridad en migraciones
+    • Implementar rollback automático en caso de fallo
+    • Documentar dependencias entre servicios
+  🔧 appointments: Considerar dividir migración inicial en pasos más pequeños
+  🔧 medical-records: Considerar dividir migración inicial en pasos más pequeños
+  🔧 notifications: Considerar dividir migración inicial en pasos más pequeños
+  🔧 payments: Considerar dividir migración inicial en pasos más pequeños
+  🔧 users: Considerar dividir migración inicial en pasos más pequeños
+
+📊 DETALLES TÉCNICOS
+----------------------------------------
+
+AUTH - Migraciones:
+  • 001_initial_schema.py
+    Revisión: 001
+    Padre: None
+    Tablas creadas: 10
+    Upgrade: ✅
+    Downgrade: ✅
+  • 002_initial_data.py
+    Revisión: 002
+    Padre: 001
+    Tablas creadas: 0
+    Upgrade: ✅
+    Downgrade: ✅
+
+APPOINTMENTS - Migraciones:
+  • ceaa5a577438_initial_schema_for_appointment_service.py
+    Revisión: ceaa5a577438
+    Padre: None
+    Tablas creadas: 8
+    Upgrade: ✅
+    Downgrade: ✅
+
+MEDICAL-RECORDS - Migraciones:
+  • 7eb086d8a208_initial_schema_for_medical_records_.py
+    Revisión: 7eb086d8a208
+    Padre: None
+    Tablas creadas: 7
+    Upgrade: ✅
+    Downgrade: ✅
+
+NOTIFICATIONS - Migraciones:
+  • 6e7a0fdc03f1_initial_schema_for_notification_service.py
+    Revisión: 6e7a0fdc03f1
+    Padre: None
+    Tablas creadas: 8
+    Upgrade: ✅
+    Downgrade: ✅
+
+PAYMENTS - Migraciones:
+  • 1cdbfd25599c_initial_schema_for_payment_service.py
+    Revisión: 1cdbfd25599c
+    Padre: None
+    Tablas creadas: 8
+    Upgrade: ✅
+    Downgrade: ✅
+
+USERS - Migraciones:
+  • 5b0ba9a60226_initial_schema_for_user_service.py
+    Revisión: 5b0ba9a60226
+    Padre: None
+    Tablas creadas: 7
+    Upgrade: ✅
+    Downgrade: ✅
+
+================================================================================
+FIN DEL REPORTE
+================================================================================

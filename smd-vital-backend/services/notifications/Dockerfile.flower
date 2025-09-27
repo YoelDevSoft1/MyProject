@@ -6,8 +6,8 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV CELERY_BROKER_URL=amqp://smdvital:password@rabbitmq:5672/smdvital
-ENV CELERY_RESULT_BACKEND=redis://redis:6379/3
+ENV CELERY_BROKER_URL=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital
+ENV CELERY_RESULT_BACKEND=redis://:redis_password_2024@redis:6379/3
 
 # Set work directory
 WORKDIR /app
@@ -49,4 +49,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 EXPOSE 5555
 
 # Default command
-CMD ["celery", "-A", "app.celery", "flower", "--port=5555", "--broker=amqp://smdvital:password@rabbitmq:5672/smdvital"]
+CMD ["celery", "-A", "app.celery", "flower", "--port=5555", "--broker=amqp://smdvital:rabbitmq_password_2024@rabbitmq:5672/smdvital"]

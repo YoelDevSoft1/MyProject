@@ -1,0 +1,61 @@
+# Auth Service - Dockerfile Seguro y Optimizado
+# =============================================
+# Multi-stage build con seguridad mejorada
+
+# Stage 1: Builder
+FROM python:3.11-slim as builder
+
+# Instalar dependencias de build
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Crear directorio de trabajo
+WORKDIR /app
+
+# Copiar requirements y instalar dependencias
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 2: Production
+FROM python:3.11-slim as production
+
+# Instalar solo dependencias de runtime
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Crear usuario no-root
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Copiar dependencias del builder
+COPY --from=builder /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# Configurar variables de entorno
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Configurar directorio de trabajo
+WORKDIR /app
+COPY --chown=appuser:appuser . .
+
+# Cambiar a usuario no-root
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+# Exponer puerto
+EXPOSE 8001
+
+# Comando de inicio
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+

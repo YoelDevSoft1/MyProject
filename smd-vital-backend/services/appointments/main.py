@@ -9,8 +9,10 @@ from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 import logging
+import os
 from typing import Optional, List
 import uuid
+from contextlib import asynccontextmanager
 
 # Importar función de autenticación (simulada por ahora)
 def get_current_user():
@@ -40,30 +42,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# FastAPI app instance
-app = FastAPI(
-    title="SMD Vital - Appointment Service",
-    description="Microservicio de gestión de citas médicas para SMD Vital Bogotá",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json"
-)
-
-# CORS is handled by Nginx API Gateway
-# No need for CORS middleware in individual microservices
-
 # Inicializar servicios
 reservation_service = None
 
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Inicializar motor de base de datos y servicios"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manejar eventos de inicio y cierre de la aplicación"""
+    global reservation_service
+    
+    # Startup
     await db.init_engine()
     
     # Inicializar Redis para reservas temporales
-    global reservation_service
     redis_client = redis.Redis(
         host='redis', 
         port=6379, 
@@ -74,13 +64,38 @@ async def startup_event():
     reservation_service = AppointmentReservationService(db, redis_client)
     
     logger.info("Appointment service initialized successfully")
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cerrar motor de base de datos"""
+    
+    yield
+    
+    # Shutdown
     await db.close_engine()
     logger.info("Database engine closed")
+
+# FastAPI app instance
+app = FastAPI(
+    title="SMD Vital - Appointment Service",
+    description="Microservicio de gestión de citas médicas para SMD Vital Bogotá",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    lifespan=lifespan
+)
+
+# ===== CONFIGURACIÓN CORS =====
+# CORS deshabilitado en el servicio - Nginx se encarga de CORS
+# Esto evita headers duplicados que causan errores CORS
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["http://localhost:3001"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+# CORS is handled by Nginx API Gateway
+# No need for CORS middleware in individual microservices
 
 # Health Check
 @app.get("/health", tags=["Health"])
@@ -308,9 +323,12 @@ async def create_temporary_reservation(reservation_data: dict, current_user: dic
             appointment_type=reservation_data.get("appointment_type", "CONSULTATION")
         )
         
+        logger.info(f"🔍 [CreateReservation] Resultado del servicio: {result}")
+        
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result["error"])
         
+        logger.info(f"🔍 [CreateReservation] Retornando: {result}")
         return result
     except HTTPException:
         raise
@@ -322,20 +340,33 @@ async def create_temporary_reservation(reservation_data: dict, current_user: dic
 async def confirm_reservation(confirmation_data: dict, current_user: dict = Depends(get_current_user)):
     """Confirmar reserva temporal y crear cita definitiva"""
     try:
+        logger.info(f"🔍 [ConfirmReservation] Datos recibidos: {confirmation_data}")
+        logger.info(f"🔍 [ConfirmReservation] Usuario actual: {current_user}")
+        
         if not reservation_service:
             raise HTTPException(status_code=500, detail="Servicio de reservas no disponible")
         
         # Usar el patient_id del usuario autenticado
         patient_id = current_user.get("id")
         if not patient_id:
+            logger.error("❌ [ConfirmReservation] ID de paciente no encontrado en current_user")
             raise HTTPException(status_code=400, detail="ID de paciente no encontrado")
         
+        reservation_id = confirmation_data.get("reservation_id")
+        patient_data = confirmation_data.get("patient_data", {})
+        
+        logger.info(f"🔍 [ConfirmReservation] Reservation ID: {reservation_id}")
+        logger.info(f"🔍 [ConfirmReservation] Patient data: {patient_data}")
+        
         result = await reservation_service.confirm_reservation(
-            reservation_id=confirmation_data.get("reservation_id"),
-            patient_data=confirmation_data.get("patient_data", {})
+            reservation_id=reservation_id,
+            patient_data=patient_data
         )
         
+        logger.info(f"🔍 [ConfirmReservation] Resultado: {result}")
+        
         if not result["success"]:
+            logger.error(f"❌ [ConfirmReservation] Error en confirmación: {result['error']}")
             raise HTTPException(status_code=400, detail=result["error"])
         
         return result

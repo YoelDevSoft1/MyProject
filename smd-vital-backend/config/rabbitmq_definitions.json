@@ -1,0 +1,46 @@
+{
+  "rabbit_version": "3.12.0",
+  "rabbitmq_version": "3.12.0",
+  "product_name": "RabbitMQ",
+  "product_version": "3.12.0",
+  "users": [
+    {
+      "name": "smdvital",
+      "password_hash": "rabbitmq_password_2024",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": "administrator"
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "smdvital"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "smdvital",
+      "vhost": "smdvital",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [],
+  "policies": [
+    {
+      "vhost": "smdvital",
+      "name": "ha-policy",
+      "pattern": ".*",
+      "apply-to": "all",
+      "definition": {
+        "ha-mode": "all"
+      },
+      "priority": 0
+    }
+  ],
+  "queues": [],
+  "exchanges": [],
+  "bindings": []
+}

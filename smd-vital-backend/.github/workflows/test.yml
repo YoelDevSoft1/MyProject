@@ -1,0 +1,196 @@
+name: SMD VITAL Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+        test-category: [unit, integration, load, security]
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: smd_vital_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:6
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+      
+      rabbitmq:
+        image: rabbitmq:3-management
+        env:
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5672:5672
+          - 15672:15672
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pip install -r requirements.txt
+    
+    - name: Set up environment variables
+      run: |
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smd_vital_test" >> $GITHUB_ENV
+        echo "REDIS_URL=redis://localhost:6379/1" >> $GITHUB_ENV
+        echo "RABBITMQ_URL=amqp://admin:admin@localhost:5672" >> $GITHUB_ENV
+        echo "JWT_SECRET_KEY=test_secret_key_for_github_actions" >> $GITHUB_ENV
+        echo "STRIPE_SECRET_KEY=sk_test_github_actions" >> $GITHUB_ENV
+        echo "STRIPE_WEBHOOK_SECRET=whsec_test_github_actions" >> $GITHUB_ENV
+    
+    - name: Run unit tests
+      if: matrix.test-category == 'unit'
+      run: |
+        python run_tests.py --unit --verbose --coverage
+    
+    - name: Run integration tests
+      if: matrix.test-category == 'integration'
+      run: |
+        python run_tests.py --integration --verbose --coverage
+    
+    - name: Run load tests
+      if: matrix.test-category == 'load'
+      run: |
+        python run_tests.py --performance --verbose
+    
+    - name: Run security tests
+      if: matrix.test-category == 'security'
+      run: |
+        python run_tests.py --security --verbose
+    
+    - name: Upload coverage reports
+      if: matrix.test-category == 'unit'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.test-category }}-${{ matrix.python-version }}
+        path: |
+          test-results.xml
+          test-report.html
+          htmlcov/
+          test-results.json
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run security scan
+      run: |
+        pip install bandit safety semgrep
+        bandit -r . -f json -o bandit-report.json
+        safety check --json --output safety-report.json
+        semgrep --config=auto --json --output=semgrep-report.json .
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+          semgrep-report.json
+
+  performance-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pip install locust
+    
+    - name: Run performance tests
+      run: |
+        python run_tests.py --performance --verbose
+    
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: |
+          test-results.xml
+          test-report.html
+          test-results.json
+
+  test-summary:
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+    if: always()
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Generate test summary
+      run: |
+        echo "# SMD VITAL Test Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "- Unit Tests: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Security Scan: ${{ needs.security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "## Coverage" >> $GITHUB_STEP_SUMMARY
+        echo "- Code coverage reports available in artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "## Security" >> $GITHUB_STEP_SUMMARY
+        echo "- Security scan reports available in artifacts" >> $GITHUB_STEP_SUMMARY

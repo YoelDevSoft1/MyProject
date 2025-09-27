@@ -1,0 +1,91 @@
+{
+  "index_patterns": ["smd-vital-logs-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index.refresh_interval": "5s"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "timestamp": {
+          "type": "date"
+        },
+        "service": {
+          "type": "keyword"
+        },
+        "service_name": {
+          "type": "keyword"
+        },
+        "level": {
+          "type": "keyword"
+        },
+        "message": {
+          "type": "text",
+          "analyzer": "standard"
+        },
+        "type": {
+          "type": "keyword"
+        },
+        "user_id": {
+          "type": "keyword"
+        },
+        "request_id": {
+          "type": "keyword"
+        },
+        "method": {
+          "type": "keyword"
+        },
+        "path": {
+          "type": "keyword"
+        },
+        "status_code": {
+          "type": "integer"
+        },
+        "duration_ms": {
+          "type": "float"
+        },
+        "ip_address": {
+          "type": "ip"
+        },
+        "event_type": {
+          "type": "keyword"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "keyword"
+        },
+        "data": {
+          "type": "object"
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "environment": {
+          "type": "keyword"
+        },
+        "container_id": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+

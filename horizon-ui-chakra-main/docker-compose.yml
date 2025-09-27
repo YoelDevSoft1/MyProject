@@ -1,0 +1,65 @@
+# SMD VITAL Frontend - Docker Compose optimizado
+# ===============================================
+
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+    container_name: smd-vital-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+      - REACT_APP_GOOGLE_CLIENT_ID=${REACT_APP_GOOGLE_CLIENT_ID}
+      - REACT_APP_STRIPE_PUBLISHABLE_KEY=${REACT_APP_STRIPE_PUBLISHABLE_KEY}
+    volumes:
+      - ./nginx-logs:/var/log/nginx
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - smd-vital-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`smd-vital.local`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+
+  # Servicio de desarrollo (opcional)
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: smd-vital-frontend-dev
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+      - REACT_APP_GOOGLE_CLIENT_ID=${REACT_APP_GOOGLE_CLIENT_ID}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm start
+    profiles:
+      - dev
+    networks:
+      - smd-vital-network
+
+networks:
+  smd-vital-network:
+    driver: bridge
+    external: false
+
+volumes:
+  nginx-logs:
+    driver: local

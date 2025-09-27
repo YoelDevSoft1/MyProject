@@ -5,11 +5,9 @@ import { MdBarChart, MdPerson, MdFileCopy, MdCalendarToday, MdAttachMoney, MdPsy
 import { FaUser } from "react-icons/fa";
 
 // Custom components
-import MainDashboard from "views/admin/default";
 import DataTables from "views/admin/dataTables";
 import Profile from "views/admin/profile";
-import MedicalDashboard from "views/medical/dashboard";
-import Appointments from "views/medical/appointments";
+import Appointments from "views/medical/appointments/AppointmentsOptimized"; // CORS fixed - using optimized version
 import MedicalRecords from "views/medical/records";
 import Patients from "views/medical/patients";
 import Payments from "views/medical/payments";
@@ -30,25 +28,11 @@ import ContextualDashboard from "components/ContextualDashboard";
 
 const routes = [
   {
-    name: "Dashboard Principal SMD VITAL",
-    layout: "/admin",
-    path: "/main",
-    icon: <Icon as={IoMdHome} width="20px" height="20px" color="inherit" />,
-    component: MainDashboard,
-  },
-  {
-    name: "Dashboard Contextual",
-    layout: "/admin",
-    path: "/contextual-dashboard",
-    icon: <Icon as={IoMdHome} width="20px" height="20px" color="inherit" />,
-    component: ContextualDashboard,
-  },
-  {
-    name: "Dashboard Médico",
+    name: "Dashboard SMD VITAL",
     layout: "/admin",
     path: "/dashboard",
-    icon: <Icon as={MdCalendarToday} width="20px" height="20px" color="inherit" />,
-    component: MedicalDashboard,
+    icon: <Icon as={IoMdHome} width="20px" height="20px" color="inherit" />,
+    component: ContextualDashboard,
   },
   {
     name: "Citas Médicas",

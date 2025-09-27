@@ -1,6 +1,6 @@
 // SMD VITAL - Authentication Context
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import apiService from '../services/apiService';
+import robustApiService from '../services/robustApiService';
 import userService from '../services/userService';
 import userDetectionService from '../services/userDetectionService';
 import dashboardService from '../services/dashboardService';
@@ -34,9 +34,9 @@ export const AuthProvider = ({ children }) => {
   const verifyToken = useCallback(async () => {
     try {
       setIsLoading(true);
-      // Establecer el token en el apiService antes de hacer la petición
-      apiService.setAuthToken(token);
-      const response = await apiService.getProfile();
+      // Establecer el token en el robustApiService antes de hacer la petición
+      robustApiService.setAuthToken(token);
+      const response = await robustApiService.getProfile();
       
       if (response.success) {
         // El endpoint /me devuelve los datos directamente, no envueltos en 'data'
@@ -64,8 +64,8 @@ export const AuthProvider = ({ children }) => {
   // Verificar token al cargar la aplicación
   useEffect(() => {
     if (token) {
-      // Establecer el token en el apiService antes de verificar
-      apiService.setAuthToken(token);
+      // Establecer el token en el robustApiService antes de verificar
+      robustApiService.setAuthToken(token);
       verifyToken();
     }
   }, [token, verifyToken]);
@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       setIsLoading(true);
-      const response = await apiService.login(credentials);
+      const response = await robustApiService.login(credentials);
       
       if (response.success) {
         const { access_token: newToken } = response.data;
@@ -81,9 +81,9 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         localStorage.setItem('smd_vital_token', newToken);
         
-        // Establecer el token en el apiService y obtener datos del usuario
-        apiService.setAuthToken(newToken);
-        const userResponse = await apiService.getProfile();
+        // Establecer el token en el robustApiService y obtener datos del usuario
+        robustApiService.setAuthToken(newToken);
+        const userResponse = await robustApiService.getProfile();
         if (userResponse.success) {
           // El endpoint /me devuelve los datos directamente, no envueltos en 'data'
           const userData = userResponse.data;
@@ -111,7 +111,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       setIsLoading(true);
-      const response = await apiService.register(userData);
+      const response = await robustApiService.register(userData);
       
       if (response.success) {
         return { success: true, data: response.data };
@@ -210,7 +210,7 @@ export const AuthProvider = ({ children }) => {
   const loginWithGoogle = async (googleUserData) => {
     try {
       setIsLoading(true);
-      const response = await apiService.loginWithGoogle(googleUserData);
+      const response = await robustApiService.loginWithGoogle(googleUserData);
       
       if (response.success) {
         const { access_token: newToken } = response.data;
@@ -218,9 +218,9 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         localStorage.setItem('smd_vital_token', newToken);
         
-        // Establecer el token en el apiService y obtener datos del usuario
-        apiService.setAuthToken(newToken);
-        const userResponse = await apiService.getProfile();
+        // Establecer el token en el robustApiService y obtener datos del usuario
+        robustApiService.setAuthToken(newToken);
+        const userResponse = await robustApiService.getProfile();
         
         if (userResponse.success) {
           // El endpoint /me devuelve los datos directamente, no envueltos en 'data'

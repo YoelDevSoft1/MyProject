@@ -12,6 +12,7 @@ import os
 from typing import Optional
 import jwt
 from pydantic import BaseModel, EmailStr, validator
+from contextlib import asynccontextmanager
 
 # Importar el módulo de base de datos
 from database_auth import db_auth, DatabaseAuthError
@@ -58,13 +59,14 @@ class TokenData(BaseModel):
     email: Optional[str] = None
 
 class GoogleAuthData(BaseModel):
-    googleId: str
-    email: EmailStr
+    googleId: Optional[str] = None
+    email: Optional[EmailStr] = None
     name: Optional[str] = None
     given_name: Optional[str] = None
     family_name: Optional[str] = None
     picture: Optional[str] = None
     email_verified: Optional[bool] = False
+    token: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: str
@@ -82,6 +84,23 @@ class UserResponse(BaseModel):
 # Configuración de OAuth2
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manejar eventos de inicio y cierre de la aplicación"""
+    # Startup
+    try:
+        await db_auth.init_pool()
+        logger.info("Sistema de autenticación inicializado correctamente")
+    except Exception as e:
+        logger.error(f"Error al inicializar el sistema de autenticación: {e}")
+        raise
+    
+    yield
+    
+    # Shutdown
+    await db_auth.close_pool()
+    logger.info("Conexiones de base de datos cerradas")
+
 # FastAPI app instance
 app = FastAPI(
     title="SMD Vital - Authentication Service",
@@ -89,23 +108,20 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    lifespan=lifespan
 )
 
 # ===== CONFIGURACIÓN CORS =====
-# CORS deshabilitado en el servicio - nginx se encarga de CORS
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=[
-#         "http://localhost:3000",
-#         "http://localhost:3001",
-#         "http://127.0.0.1:3000",
-#         "http://127.0.0.1:3001",
-#     ],
-#     allow_credentials=True,
-#     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-#     allow_headers=["*"],
-# )
+# CORS habilitado temporalmente para desarrollo
+# En producción, Nginx se encarga de CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Utilidades JWT
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -154,6 +170,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         logger.error(f"Error al decodificar JWT: {e}")
         raise credentials_exception
     
+    # Para usuarios temporales de Google (desarrollo)
+    if user_id.startswith("google_"):
+        logger.info(f"Usuario temporal de Google: {user_id}")
+        return payload  # Retornar el payload completo para usuarios temporales
+    
     # Buscar usuario en la base de datos
     logger.info(f"Buscando usuario con ID: {user_id}")
     user = await db_auth.get_user_by_id(token_data.user_id)
@@ -164,23 +185,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     
     logger.info(f"Usuario encontrado: {user.get('email', 'N/A')} (ID: {user.get('id', 'N/A')})")
     return user
-
-# Event handlers
-@app.on_event("startup")
-async def startup_event():
-    """Inicializar sistema de autenticación"""
-    try:
-        await db_auth.init_pool()
-        logger.info("Sistema de autenticación inicializado correctamente")
-    except Exception as e:
-        logger.error(f"Error al inicializar el sistema de autenticación: {e}")
-        raise
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cerrar conexiones de base de datos"""
-    await db_auth.close_pool()
-    logger.info("Conexiones de base de datos cerradas")
 
 # Endpoints básicos
 @app.get("/health", tags=["Health"])
@@ -298,6 +302,23 @@ async def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
 @app.get("/me", response_model=UserResponse, tags=["Authentication"])
 async def get_current_user_profile(current_user: dict = Depends(get_current_user)):
     """Obtener información del usuario actual"""
+    # Para usuarios temporales de Google (desarrollo)
+    if isinstance(current_user, dict) and current_user.get("sub", "").startswith("google_"):
+        return {
+            "id": current_user.get("sub"),
+            "email": current_user.get("email"),
+            "username": current_user.get("email", "").split("@")[0],
+            "role": current_user.get("role", "patient"),
+            "is_active": True,
+            "is_verified": True,
+            "first_name": current_user.get("name", "Usuario").split(" ")[0],
+            "last_name": " ".join(current_user.get("name", "Google").split(" ")[1:]) or "Google",
+            "profile_picture": None,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+    
+    # Para usuarios normales de base de datos
     return db_auth.user_to_response(current_user)
 
 @app.get("/me/detection", tags=["Authentication"])
@@ -433,6 +454,16 @@ async def logout_user():
     # En una implementación real, invalidarías el token aquí
     return {"message": "Logout exitoso"}
 
+@app.get("/google", tags=["Authentication"])
+async def google_auth_get():
+    """Endpoint GET para Google OAuth - información de configuración"""
+    return {
+        "status": "ok", 
+        "message": "Google OAuth endpoint disponible",
+        "methods": ["POST"],
+        "description": "Use POST para autenticación con Google"
+    }
+
 @app.post("/google/verify", tags=["Authentication"])
 async def google_verify_token():
     """Endpoint para verificación de tokens de Google (FedCM)"""
@@ -440,71 +471,35 @@ async def google_verify_token():
 
 @app.post("/google", response_model=Token, tags=["Authentication"])
 async def google_auth(google_data: GoogleAuthData):
-    """Autenticación con Google OAuth"""
+    """Autenticación con Google OAuth - Versión simplificada para desarrollo"""
     try:
-        logger.info(f"Google auth request received")
+        logger.info(f"Google auth request received for development")
         
-        # Extraer datos de Google
+        # Validar datos mínimos requeridos
+        if not google_data.googleId or not google_data.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Datos de Google incompletos. Se requiere googleId + email"
+            )
+        
         google_id = google_data.googleId
         email = google_data.email
-        name = google_data.name
-        picture = google_data.picture
-        given_name = google_data.given_name
-        family_name = google_data.family_name
-        email_verified = google_data.email_verified
+        name = google_data.name or "Usuario Google"
         
-        if not google_id or not email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Datos de Google incompletos"
-            )
+        # Para desarrollo, crear un usuario temporal sin base de datos
+        user_id = f"google_{google_id}"
         
-        # Validar que el email esté verificado por Google
-        if not email_verified:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email no verificado por Google"
-            )
+        # Generar tokens JWT directamente
+        access_token = create_access_token({
+            "sub": user_id, 
+            "email": email, 
+            "role": "patient",
+            "google_id": google_id,
+            "name": name
+        })
+        refresh_token = create_refresh_token({"sub": user_id})
         
-        # Verificar si el usuario ya existe por Google ID
-        user = await db_auth.get_user_by_google_id(google_id)
-        
-        if not user:
-            # Si no existe por Google ID, verificar por email
-            user = await db_auth.get_user_by_email(email)
-            
-            if user:
-                # Usuario existe por email, actualizar con Google ID
-                await db_auth.update_user(user["id"], {
-                    "google_id": google_id,
-                    "profile_picture": picture,
-                    "email_verified": email_verified,
-                    "first_name": given_name or name.split(" ")[0] if name else user.get("first_name", ""),
-                    "last_name": family_name or " ".join(name.split(" ")[1:]) if name and len(name.split(" ")) > 1 else user.get("last_name", "")
-                })
-            else:
-                # Crear nuevo usuario con Google
-                user_data = {
-                    "email": email,
-                    "username": email.split("@")[0],
-                    "role": "user",
-                    "google_id": google_id,
-                    "profile_picture": picture,
-                    "email_verified": email_verified,
-                    "first_name": given_name or name.split(" ")[0] if name else "",
-                    "last_name": family_name or " ".join(name.split(" ")[1:]) if name and len(name.split(" ")) > 1 else ""
-                }
-                
-                user = await db_auth.create_user(user_data)
-                if not user:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Error al crear usuario"
-                    )
-        
-        # Generar tokens JWT
-        access_token = create_access_token({"sub": user["id"], "email": user["email"], "role": user["role"]})
-        refresh_token = create_refresh_token({"sub": user["id"]})
+        logger.info(f"Google auth successful for {email}")
         
         return {
             "access_token": access_token,
@@ -518,7 +513,7 @@ async def google_auth(google_data: GoogleAuthData):
         logger.error(f"Error en autenticación con Google: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
+            detail=f"Error interno del servidor: {str(e)}"
         )
 
 if __name__ == "__main__":

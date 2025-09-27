@@ -1,0 +1,45 @@
+# SMD VITAL Frontend - Dockerfile para desarrollo
+# ================================================
+
+FROM node:18-alpine
+
+# Configurar usuario no-root
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Instalar dependencias del sistema
+RUN apk add --no-cache \
+    curl \
+    dumb-init \
+    && rm -rf /var/cache/apk/*
+
+# Copiar archivos de dependencias
+COPY package*.json ./
+
+# Instalar dependencias
+RUN npm ci --no-audit --no-fund
+
+# Copiar código fuente
+COPY . .
+
+# Configurar permisos
+RUN chown -R nextjs:nodejs /app
+
+# Cambiar a usuario no-root
+USER nextjs
+
+# Exponer puerto
+EXPOSE 3000
+
+# Healthcheck para desarrollo
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/ || exit 1
+
+# Usar dumb-init para manejo de señales
+ENTRYPOINT ["dumb-init", "--"]
+
+# Comando de inicio para desarrollo
+CMD ["npm", "start"]

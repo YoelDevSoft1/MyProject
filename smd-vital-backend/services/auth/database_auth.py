@@ -145,22 +145,22 @@ class DatabaseAuth:
                     
                     await conn.execute("""
                         INSERT INTO users (id, email, username, password_hash, role, 
-                        is_active, is_verified, created_at, updated_at)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                        is_active, is_verified, is_superuser, failed_login_attempts, created_at, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     """, user_id, email, username, password_hash, role, 
-                    True, False, now, now)
+                    True, False, False, 0, now, now)
                 else:
                     # Registro con Google OAuth
                     await conn.execute("""
                         INSERT INTO users (id, email, username, role, is_active, 
-                        is_verified, google_id, profile_picture, email_verified, 
-                        first_name, last_name, created_at, updated_at)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                    """, user_id, email, username, role, True, True,
+                        is_verified, is_superuser, google_id, profile_picture, email_verified, 
+                        first_name, last_name, failed_login_attempts, created_at, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                    """, user_id, email, username, role, True, True, False,
                     user_data.get("google_id"), user_data.get("profile_picture"),
                     user_data.get("email_verified", True),
                     user_data.get("first_name", ""), user_data.get("last_name", ""),
-                    now, now)
+                    0, now, now)
 
                 user = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
                 return record_to_dict(user)

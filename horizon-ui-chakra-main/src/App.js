@@ -5,6 +5,7 @@ import AdminLayout from './layouts/admin';
 import RTLLayout from './layouts/rtl';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
+import IntelligentRedirect from './components/IntelligentRedirect';
 import {
   ChakraProvider,
   // extendTheme
@@ -12,6 +13,7 @@ import {
 import initialTheme from './theme/medicalTheme'; //  { themeGreen }
 import { useState } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
+import SimpleFloatingButton from './components/ai/SimpleFloatingButton';
 // Chakra imports
 
 export default function Main() {
@@ -49,12 +51,27 @@ export default function Main() {
             }
           />
           
+          {/* Ruta de redirección inteligente - accesible solo si estás autenticado */}
+          <Route 
+            path="/intelligent-redirect" 
+            element={
+              <ProtectedRoute>
+                <IntelligentRedirect />
+              </ProtectedRoute>
+            } 
+          />
+          
           {/* Redirecciones para compatibilidad */}
           <Route path="/login" element={<Navigate to="/auth/sign-in" replace />} />
+          <Route path="/admin/main" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/admin/contextual-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
           
           {/* Ruta raíz - redirige según el estado de autenticación */}
           <Route path="/" element={<Navigate to="/auth/sign-in" replace />} />
         </Routes>
+        
+        {/* Botón flotante de IA */}
+        <SimpleFloatingButton />
       </AuthProvider>
     </ChakraProvider>
   );

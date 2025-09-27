@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test SMD VITAL AI Integration</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .loading { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🤖 Test de Integración SMD VITAL AI</h1>
+    
+    <div class="test-section" id="status-test">
+        <h3>1. Estado del Servicio AI</h3>
+        <button onclick="testAIStatus()">Probar Estado</button>
+        <div id="status-result"></div>
+    </div>
+    
+    <div class="test-section" id="models-test">
+        <h3>2. Modelos Disponibles</h3>
+        <button onclick="testModels()">Cargar Modelos</button>
+        <div id="models-result"></div>
+    </div>
+    
+    <div class="test-section" id="query-test">
+        <h3>3. Prueba de Consulta</h3>
+        <input type="text" id="query-input" placeholder="Escribe tu consulta médica..." style="width: 300px; padding: 5px;">
+        <button onclick="testQuery()">Enviar Consulta</button>
+        <div id="query-result"></div>
+    </div>
+
+    <script>
+        const AI_BASE_URL = 'http://localhost:8008/ai';
+        
+        async function testAIStatus() {
+            const resultDiv = document.getElementById('status-result');
+            resultDiv.innerHTML = '<div class="loading">Probando estado del servicio...</div>';
+            
+            try {
+                const response = await fetch(`${AI_BASE_URL}/free/status`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h4>✅ Servicio AI Funcionando</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Error de Conexión</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function testModels() {
+            const resultDiv = document.getElementById('models-result');
+            resultDiv.innerHTML = '<div class="loading">Cargando modelos...</div>';
+            
+            try {
+                const response = await fetch(`${AI_BASE_URL}/free/models`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h4>✅ Modelos Cargados</h4>
+                        <p><strong>Modelos disponibles:</strong> ${data.available_models?.length || 0}</p>
+                        <p><strong>Modelos instalados:</strong> ${data.installed_models?.length || 0}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Error Cargando Modelos</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function testQuery() {
+            const query = document.getElementById('query-input').value;
+            if (!query.trim()) {
+                alert('Por favor escribe una consulta');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('query-result');
+            resultDiv.innerHTML = '<div class="loading">Enviando consulta...</div>';
+            
+            try {
+                const response = await fetch(`${AI_BASE_URL}/free/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        user_id: 'test_user',
+                        model: 'phi',
+                        context: {}
+                    })
+                });
+                
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h4>✅ Respuesta de IA</h4>
+                        <p><strong>Modelo usado:</strong> ${data.model_used || 'N/A'}</p>
+                        <p><strong>Respuesta:</strong></p>
+                        <div style="background: white; padding: 10px; border-radius: 3px; margin: 10px 0;">
+                            ${data.response || data.error || 'Sin respuesta'}
+                        </div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Error en Consulta</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Auto-cargar estado al cargar la página
+        window.onload = function() {
+            testAIStatus();
+        };
+    </script>
+</body>
+</html>

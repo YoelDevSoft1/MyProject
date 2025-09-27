@@ -2,6 +2,7 @@
   "name": "horizon-ui-chakra",
   "version": "2.0.0",
   "private": true,
+  "proxy": "http://localhost:8000",
   "dependencies": {
     "@babel/preset-react": "^7.24.7",
     "@chakra-ui/icons": "^2.1.1",
@@ -37,10 +38,22 @@
     "start:3002": "set PORT=3002 && set GENERATE_SOURCEMAP=false && set DISABLE_ESLINT_PLUGIN=true && react-scripts start",
     "start:3003": "set PORT=3003 && set GENERATE_SOURCEMAP=false && set DISABLE_ESLINT_PLUGIN=true && react-scripts start",
     "build": "react-scripts build",
+    "build:optimized": "GENERATE_SOURCEMAP=false DISABLE_ESLINT_PLUGIN=true NODE_ENV=production react-scripts build",
+    "build:analyze": "npm run build:optimized && npx webpack-bundle-analyzer build/static/js/*.js",
+    "build:docker": "docker build -t smd-vital-frontend .",
+    "build:docker:dev": "docker build -f Dockerfile.dev -t smd-vital-frontend:dev .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f frontend",
+    "docker:clean": "docker-compose down -v && docker system prune -f",
     "test": "react-scripts test",
+    "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "lint": "eslint src --ext .js,.jsx --max-warnings 0",
+    "lint:fix": "eslint src --ext .js,.jsx --fix",
     "eject": "react-scripts eject",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d build"
+    "predeploy": "npm run build:optimized",
+    "deploy": "gh-pages -d build",
+    "health": "curl -f http://localhost:3000/health || exit 1"
   },
   "eslintConfig": {
     "extends": [

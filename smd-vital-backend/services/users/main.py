@@ -5,11 +5,14 @@ SMD Vital - User Service
 Microservicio de gestión de usuarios para la plataforma SMD Vital.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import logging
 import os
+from typing import Optional, List
+from pydantic import BaseModel, EmailStr
+import requests
 
 # Logging configuration
 logging.basicConfig(
@@ -17,6 +20,58 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Pydantic Models
+class UserProfile(BaseModel):
+    id: str
+    email: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    medical_conditions: Optional[List[str]] = None
+    role: str = "patient"
+    is_active: bool = True
+    is_verified: bool = False
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class UserProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    medical_conditions: Optional[List[str]] = None
+
+class NotificationSettings(BaseModel):
+    email_enabled: bool = True
+    sms_enabled: bool = True
+    push_enabled: bool = True
+    whatsapp_enabled: bool = False
+    notification_types: Optional[List[str]] = None
+
+class Doctor(BaseModel):
+    id: str
+    name: str
+    specialty: str
+    department: str
+    is_active: bool
+    email: str
+    phone: str
+    experience_years: int
+    rating: float
+    available_hours: str
+
+class Notification(BaseModel):
+    id: str
+    title: str
+    message: str
+    type: str
+    read: bool
+    created_at: str
+    priority: str
 
 # FastAPI app instance
 app = FastAPI(
@@ -27,6 +82,17 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json"
 )
+
+# ===== CONFIGURACIÓN CORS =====
+# CORS deshabilitado en el servicio - Nginx se encarga de CORS
+# Esto evita headers duplicados que causan errores CORS
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["http://localhost:3001"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
 # CORS is handled by Nginx API Gateway
 # No need for CORS middleware in individual microservices
@@ -75,20 +141,21 @@ async def service_info():
 
 # ===== USER PROFILE APIs =====
 
-@app.get("/profile", tags=["User Profile"])
+@app.get("/profile", response_model=UserProfile, tags=["User Profile"])
 async def get_user_profile(user_id: str = None):
-    """Obtener perfil completo del usuario"""
+    """
+    Obtener perfil completo del usuario
+    
+    - **user_id**: ID del usuario (requerido)
+    """
     try:
         logger.info(f"Getting user profile for user_id: {user_id}")
         
         if not user_id:
-            return {
-                "success": False,
-                "error": "user_id es requerido"
-            }
-        
-        # Importar el servicio de autenticación para obtener datos del usuario
-        import requests
+            raise HTTPException(
+                status_code=400, 
+                detail="user_id es requerido"
+            )
         
         # Obtener datos del usuario desde el servicio de autenticación
         auth_service_url = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001")
@@ -102,82 +169,161 @@ async def get_user_profile(user_id: str = None):
                 logger.info(f"User data retrieved from auth service: {user_data}")
                 
                 # Transformar datos para el perfil
-                profile_data = {
-                    "id": user_data.get("id", ""),
-                    "email": user_data.get("email", ""),
-                    "name": f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip() or user_data.get("email", "").split("@")[0] or "Usuario",
-                    "first_name": user_data.get("first_name", ""),
-                    "last_name": user_data.get("last_name", ""),
-                    "username": user_data.get("username", ""),
-                    "role": user_data.get("role", "user"),
-                    "specialty": user_data.get("specialty", ""),
-                    "phone": user_data.get("phone", ""),
-                    "avatar": user_data.get("profile_picture", ""),
-                    "profile_picture": user_data.get("profile_picture", ""),
-                    "bio": user_data.get("bio", ""),
-                    "is_active": user_data.get("is_active", True),
-                    "is_verified": user_data.get("is_verified", False),
-                    "email_verified": user_data.get("email_verified", False),
-                    "created_at": user_data.get("created_at"),
-                    "updated_at": user_data.get("updated_at"),
-                    "last_login": user_data.get("last_login"),
-                    "profile_complete": user_data.get("profile_complete", False),
-                    "notifications_enabled": user_data.get("notifications_enabled", True),
-                    "email_notifications": user_data.get("email_notifications", True),
-                    "sms_notifications": user_data.get("sms_notifications", False),
-                    "push_notifications": user_data.get("push_notifications", True),
-                    "google_id": user_data.get("google_id", "")
-                }
+                profile_data = UserProfile(
+                    id=user_data.get("id", ""),
+                    email=user_data.get("email", ""),
+                    first_name=user_data.get("first_name", ""),
+                    last_name=user_data.get("last_name", ""),
+                    phone=user_data.get("phone", ""),
+                    address=user_data.get("address", ""),
+                    emergency_contact=user_data.get("emergency_contact", ""),
+                    medical_conditions=user_data.get("medical_conditions", []),
+                    role=user_data.get("role", "patient"),
+                    is_active=user_data.get("is_active", True),
+                    is_verified=user_data.get("is_verified", False),
+                    created_at=user_data.get("created_at"),
+                    updated_at=user_data.get("updated_at")
+                )
                 
-                return {
-                    "success": True,
-                    "data": profile_data
-                }
+                return profile_data
             else:
                 logger.error(f"Error getting user from auth service: {response.status_code}")
-                return {
-                    "success": False,
-                    "error": "No se pudo obtener datos del usuario desde el servicio de autenticación"
-                }
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail="No se pudo obtener datos del usuario desde el servicio de autenticación"
+                )
                 
         except requests.exceptions.RequestException as e:
             logger.error(f"Error connecting to auth service: {e}")
-            return {
-                "success": False,
-                "error": "Error de conexión con el servicio de autenticación"
-            }
+            raise HTTPException(
+                status_code=503,
+                detail="Error de conexión con el servicio de autenticación"
+            )
             
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting user profile: {e}")
-        return {
-            "success": False,
-            "error": "Error al obtener el perfil del usuario"
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor"
+        )
 
-@app.put("/profile", tags=["User Profile"])
-async def update_user_profile(profile_data: dict):
-    """Actualizar perfil del usuario"""
+@app.put("/profile", response_model=UserProfile, tags=["User Profile"])
+async def update_user_profile(
+    user_id: str,
+    profile_update: UserProfileUpdate
+):
+    """
+    Actualizar perfil del usuario
+    
+    - **user_id**: ID del usuario (requerido)
+    - **profile_update**: Datos a actualizar
+    """
     try:
-        logger.info(f"Updating user profile: {profile_data}")
+        logger.info(f"Updating user profile for user_id: {user_id}")
         
-        # Aquí iría la lógica para actualizar el perfil
-        return {
-            "success": True,
-            "message": "Perfil actualizado correctamente",
-            "data": profile_data
-        }
+        if not user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="user_id es requerido"
+            )
+        
+        # Obtener datos actuales del usuario
+        auth_service_url = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001")
+        
+        try:
+            # Obtener datos actuales
+            get_response = requests.get(f"{auth_service_url}/users/{user_id}", timeout=10)
+            
+            if get_response.status_code == 200:
+                current_data = get_response.json()
+                
+                # Actualizar solo los campos proporcionados
+                update_data = profile_update.dict(exclude_unset=True)
+                updated_data = {**current_data, **update_data}
+                
+                # Enviar actualización al servicio de autenticación
+                update_response = requests.put(
+                    f"{auth_service_url}/users/{user_id}",
+                    json=updated_data,
+                    timeout=10
+                )
+                
+                if update_response.status_code == 200:
+                    updated_user = update_response.json()
+                    
+                    # Retornar perfil actualizado
+                    profile_data = UserProfile(
+                        id=updated_user.get("id", ""),
+                        email=updated_user.get("email", ""),
+                        first_name=updated_user.get("first_name", ""),
+                        last_name=updated_user.get("last_name", ""),
+                        phone=updated_user.get("phone", ""),
+                        address=updated_user.get("address", ""),
+                        emergency_contact=updated_user.get("emergency_contact", ""),
+                        medical_conditions=updated_user.get("medical_conditions", []),
+                        role=updated_user.get("role", "patient"),
+                        is_active=updated_user.get("is_active", True),
+                        is_verified=updated_user.get("is_verified", False),
+                        created_at=updated_user.get("created_at"),
+                        updated_at=updated_user.get("updated_at")
+                    )
+                    
+                    return profile_data
+                else:
+                    raise HTTPException(
+                        status_code=update_response.status_code,
+                        detail="Error al actualizar el perfil en el servicio de autenticación"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=get_response.status_code,
+                    detail="No se pudo obtener los datos actuales del usuario"
+                )
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error connecting to auth service: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail="Error de conexión con el servicio de autenticación"
+            )
+            
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating user profile: {e}")
-        return {
-            "success": False,
-            "error": "Error al actualizar el perfil"
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor"
+        )
 
-@app.get("/notifications", tags=["Notifications"])
-async def get_user_notifications(user_id: str = None, limit: int = 10, offset: int = 0):
-    """Obtener notificaciones del usuario"""
+@app.get("/notifications", response_model=List[Notification], tags=["Notifications"])
+async def get_user_notifications(
+    user_id: str,
+    limit: int = 10, 
+    offset: int = 0,
+    status: Optional[str] = None
+):
+    """
+    Obtener notificaciones del usuario
+    
+    - **user_id**: ID del usuario (requerido)
+    - **limit**: Número de notificaciones a obtener (máximo 100)
+    - **offset**: Número de notificaciones a omitir
+    - **status**: Filtrar por estado (pending, sent, read, failed)
+    """
     try:
         logger.info(f"Getting notifications for user_id: {user_id}")
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="user_id es requerido"
+            )
+        
+        if limit > 100:
+            limit = 100
         
         # Datos de ejemplo de notificaciones
         notifications = [
@@ -210,66 +356,147 @@ async def get_user_notifications(user_id: str = None, limit: int = 10, offset: i
             }
         ]
         
-        return {
-            "success": True,
-            "data": {
-                "notifications": notifications[offset:offset+limit],
-                "total": len(notifications),
-                "unread_count": len([n for n in notifications if not n["read"]])
-            }
-        }
+        # Filtrar por estado si se proporciona
+        if status:
+            notifications = [n for n in notifications if n.get("status") == status]
+        
+        # Aplicar paginación
+        paginated_notifications = notifications[offset:offset+limit]
+        
+        return paginated_notifications
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting notifications: {e}")
-        return {
-            "success": False,
-            "error": "Error al obtener las notificaciones"
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor"
+        )
 
-@app.put("/notifications/settings", tags=["Notifications"])
-async def update_notification_settings(settings: dict):
-    """Actualizar configuración de notificaciones"""
+@app.put("/notifications/settings", response_model=NotificationSettings, tags=["Notifications"])
+async def update_notification_settings(
+    user_id: str,
+    settings: NotificationSettings
+):
+    """
+    Actualizar configuración de notificaciones del usuario
+    
+    - **user_id**: ID del usuario (requerido)
+    - **settings**: Configuración de notificaciones
+    """
     try:
-        logger.info(f"Updating notification settings: {settings}")
+        logger.info(f"Updating notification settings for user_id: {user_id}")
         
-        return {
-            "success": True,
-            "message": "Configuración de notificaciones actualizada",
-            "data": settings
-        }
+        if not user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="user_id es requerido"
+            )
+        
+        # Aquí se guardaría la configuración en la base de datos
+        # Por ahora retornamos la configuración actualizada
+        
+        return settings
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating notification settings: {e}")
-        return {
-            "success": False,
-            "error": "Error al actualizar la configuración"
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor"
+        )
+
+@app.get("/notifications/settings", response_model=NotificationSettings, tags=["Notifications"])
+async def get_notification_settings(user_id: str):
+    """
+    Obtener configuración de notificaciones del usuario
+    
+    - **user_id**: ID del usuario (requerido)
+    """
+    try:
+        logger.info(f"Getting notification settings for user_id: {user_id}")
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="user_id es requerido"
+            )
+        
+        # Retornar configuración por defecto
+        return NotificationSettings()
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting notification settings: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor"
+        )
 
 @app.put("/notifications/{notification_id}/read", tags=["Notifications"])
-async def mark_notification_read(notification_id: str):
-    """Marcar notificación como leída"""
+async def mark_notification_read(
+    notification_id: str,
+    user_id: str
+):
+    """
+    Marcar notificación como leída
+    
+    - **notification_id**: ID de la notificación
+    - **user_id**: ID del usuario (requerido)
+    """
     try:
-        logger.info(f"Marking notification {notification_id} as read")
+        logger.info(f"Marking notification {notification_id} as read for user {user_id}")
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="user_id es requerido"
+            )
+        
+        # Aquí se actualizaría el estado en la base de datos
+        # Por ahora retornamos éxito
         
         return {
             "success": True,
             "message": "Notificación marcada como leída"
         }
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error marking notification as read: {e}")
-        return {
-            "success": False,
-            "error": "Error al marcar la notificación"
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor"
+        )
 
 # Doctors endpoints
-@app.get("/doctors/search", tags=["Doctors"])
+@app.get("/doctors/search", response_model=List[Doctor], tags=["Doctors"])
 async def search_doctors(
-    specialty: str = None,
-    is_active: bool = True
+    specialty: Optional[str] = None,
+    is_active: bool = True,
+    limit: int = 20,
+    offset: int = 0
 ):
-    """Buscar doctores disponibles"""
+    """
+    Buscar doctores disponibles
+    
+    - **specialty**: Especialidad médica para filtrar
+    - **is_active**: Filtrar solo doctores activos
+    - **limit**: Número de resultados (máximo 50)
+    - **offset**: Número de resultados a omitir
+    """
     try:
+        logger.info(f"Searching doctors with specialty: {specialty}, active: {is_active}")
+        
+        if limit > 50:
+            limit = 50
+        
         # Datos mock de doctores para demostración
-        doctors = [
+        doctors_data = [
             {
                 "id": "1",
                 "name": "Dr. Juan Pérez",
@@ -346,28 +573,67 @@ async def search_doctors(
         
         # Filtrar por especialidad si se proporciona
         if specialty:
-            doctors = [d for d in doctors if specialty.lower() in d["specialty"].lower()]
+            doctors_data = [d for d in doctors_data if specialty.lower() in d["specialty"].lower()]
         
         # Filtrar por estado activo
         if is_active is not None:
-            doctors = [d for d in doctors if d["is_active"] == is_active]
+            doctors_data = [d for d in doctors_data if d["is_active"] == is_active]
         
-        return {
-            "success": True,
-            "data": doctors,
-            "total": len(doctors),
-            "filters": {
-                "specialty": specialty,
-                "is_active": is_active
-            }
-        }
+        # Aplicar paginación
+        paginated_doctors = doctors_data[offset:offset+limit]
+        
+        # Convertir a modelos Pydantic
+        doctors = [Doctor(**doctor) for doctor in paginated_doctors]
+        
+        return doctors
         
     except Exception as e:
         logger.error(f"Error searching doctors: {e}")
-        return {
-            "success": False,
-            "error": "Error interno del servidor"
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor"
+        )
+
+@app.get("/doctors/{doctor_id}", response_model=Doctor, tags=["Doctors"])
+async def get_doctor_details(doctor_id: str):
+    """
+    Obtener detalles de un doctor específico
+    
+    - **doctor_id**: ID del doctor
+    """
+    try:
+        logger.info(f"Getting doctor details for doctor_id: {doctor_id}")
+        
+        if not doctor_id:
+            raise HTTPException(
+                status_code=400,
+                detail="doctor_id es requerido"
+            )
+        
+        # Datos mock - en producción se consultaría la base de datos
+        doctor_data = {
+            "id": doctor_id,
+            "name": "Dr. Juan Pérez",
+            "specialty": "Medicina General",
+            "department": "Medicina Interna",
+            "is_active": True,
+            "email": "juan.perez@smdvital.com",
+            "phone": "+57 300 123 4567",
+            "experience_years": 10,
+            "rating": 4.8,
+            "available_hours": "08:00-17:00"
         }
+        
+        return Doctor(**doctor_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting doctor details: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor"
+        )
 
 if __name__ == "__main__":
     import uvicorn
