@@ -37,7 +37,11 @@ if not exist ".env" (
 REM Verificar que existe el backup
 if not exist "smdvital_complete_backup_20250927_000353.sql" (
     echo ❌ Error: No se encontró el archivo de backup
+    echo 📁 Buscando archivo de backup...
+    dir /s *backup*.sql
+    echo.
     echo 📁 Asegúrate de que el archivo 'smdvital_complete_backup_20250927_000353.sql' esté en este directorio
+    echo 📁 O copia el archivo desde la ubicación mostrada arriba
     pause
     exit /b 1
 )
