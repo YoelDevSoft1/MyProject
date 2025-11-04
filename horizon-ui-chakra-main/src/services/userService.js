@@ -17,8 +17,8 @@ class UserService {
    */
   async getUserProfile(token) {
     try {
-      // Usar el endpoint /api/auth/me que ya funciona correctamente
-      const response = await this.apiService.makeRequest('get', '/api/auth/me', null, token);
+      // Usar el endpoint /me que ya funciona correctamente
+      const response = await this.apiService.makeRequest('get', '/me', null, token);
       
       if (response.success) {
         return {
@@ -279,7 +279,7 @@ class UserService {
       errors.email = 'El email no es válido';
     }
 
-    if (profileData.phone && !/^[\+]?[1-9][\d]{0,15}$/.test(profileData.phone.replace(/\s/g, ''))) {
+    if (profileData.phone && !/^[+]?[1-9][\d]{0,15}$/.test(profileData.phone.replace(/\s/g, ''))) {
       errors.phone = 'El número de teléfono no es válido';
     }
 

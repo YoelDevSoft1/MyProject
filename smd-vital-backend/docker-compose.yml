@@ -1,4 +1,4 @@
-# SMD Vital Backend - Docker Compose
+﻿# SMD Vital Backend - Docker Compose
 # ==================================
 # Configuración adicional para docker-compose.yml
 
@@ -82,38 +82,7 @@ services:
         reservations:
           memory: 512M
 
-  # Ollama - Modelos de IA Gratuitos - OPTIMIZADO PARA VELOCIDAD
-  ollama:
-    image: ollama/ollama:latest
-    container_name: smd_vital_ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-      - ./config/ollama.conf:/etc/ollama/ollama.conf
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_ORIGINS=*
-      - OLLAMA_NUM_PARALLEL=4          # Procesar 4 requests en paralelo
-      - OLLAMA_MAX_LOADED_MODELS=2      # Mantener 2 modelos cargados
-      - OLLAMA_FLASH_ATTENTION=1        # Habilitar flash attention
-      - OLLAMA_GPU_LAYERS=0             # Usar CPU optimizado
-    networks:
-      - smd-vital-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 16G                   # Aumentado a 16GB
-          cpus: '6.0'                   # Usar todos los CPUs disponibles
-        reservations:
-          memory: 8G                    # Reservar 8GB mínimo
-          cpus: '3.0'                   # Reservar 3 CPUs
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+  # (REMOVIDO) Servicio de modelos locales (Ollama)
 
   # AI LangGraph Service
   ai-langgraph:
@@ -128,18 +97,15 @@ services:
       - REDIS_URL=redis://:redis_password_2024@redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OLLAMA_BASE_URL=http://ollama:11434
       - FREE_AI_ENABLED=true
-      - DEFAULT_MODEL=phi
+      - DEFAULT_MODEL=gpt-4o-mini
     volumes:
       - ./services/ai-langgraph/logs:/app/logs
       - ./services/ai-langgraph/temp:/app/temp
-      - ./services/ai-langgraph/models:/app/models
       - ./services/ai-langgraph/data:/app/data
     depends_on:
       - postgres
       - redis
-      - ollama
     networks:
       - smd-vital-network
     restart: unless-stopped
@@ -326,6 +292,14 @@ services:
       - USER_SERVICE_URL=http://user-service:8002
       - ENVIRONMENT=development
       - DEBUG=true
+    command: >
+      uvicorn main:app --host 0.0.0.0 --port 8005
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import requests; requests.get('http://localhost:8005/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
     ports:
       - "8005:8005"
     depends_on:
@@ -658,5 +632,4 @@ volumes:
     driver: local
   celery-beat-schedule:
     driver: local
-  ollama_data:
-    driver: local
+

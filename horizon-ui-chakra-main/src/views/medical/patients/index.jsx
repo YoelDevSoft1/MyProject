@@ -48,13 +48,18 @@ import {
   NumberIncrementStepper,
   NumberDecrementStepper,
 } from "@chakra-ui/react";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 // Assets
 import { MdSearch, MdAdd, MdEdit, MdDelete, MdVisibility, MdPhone, MdCalendarToday, MdRefresh, MdDownload, MdPerson } from "react-icons/md";
 import { FaMars, FaVenus } from "react-icons/fa";
 import { useAuth } from "contexts/AuthContext";
-import apiService from "services/apiService";
-
+import {
+  fetchPatientsRequest,
+  createPatientRequest,
+  updatePatientRequest,
+  deletePatientRequest,
+  exportPatientsRequest
+} from "services/patientsService";
 export default function Patients() {
   // Chakra Color Mode
   const textColor = useColorModeValue("secondaryGray.900", "white");
@@ -113,67 +118,72 @@ export default function Patients() {
   
   const toast = useToast();
   const { user, token } = useAuth();
+  // Load patients from API
+  const loadPatients = useCallback(async () => {
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetchPatientsRequest({
+        token,
+        page: currentPage,
+        limit: 10,
+        status: statusFilter || undefined,
+        gender: genderFilter || undefined,
+        search: searchTerm || undefined
+      });
+      const patientsData = Array.isArray(response.patients) ? response.patients : [];
+      setPatients(patientsData);
+      setTotalPages(response.totalPages || 1);
+      applyStats(patientsData, response.stats, response.total);
+    } catch (err) {
+      console.error('Error loading patients:', err);
+      setError('Error cargando pacientes: ' + (err.message || 'Error desconocido'));
+      setPatients([]);
+      setTotalPages(1);
+      applyStats([], null, 0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token, currentPage, statusFilter, genderFilter, searchTerm]);
 
   // Load patients on component mount
   useEffect(() => {
     loadPatients();
-  }, [currentPage, statusFilter, genderFilter, searchTerm]);
-
-  // Load patients from API
-  const loadPatients = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const params = {
-        page: currentPage,
-        limit: 10,
-        status: statusFilter,
-        gender: genderFilter,
-        search: searchTerm
-      };
-      
-      const response = await apiService.getPatients(token, params);
-      const patientsData = response.data || response || [];
-      
-      // Ensure patients is always an array
-      setPatients(Array.isArray(patientsData) ? patientsData : []);
-      setTotalPages(response.totalPages || 1);
-      calculateStats(Array.isArray(patientsData) ? patientsData : []);
-      
-    } catch (err) {
-      console.error("Error loading patients:", err);
-      setError("Error cargando pacientes: " + (err.message || "Error desconocido"));
-      // Set empty array as fallback
-      setPatients([]);
-      setTotalPages(1);
-      calculateStats([]);
-    } finally {
-      setIsLoading(false);
+  }, [loadPatients]);
+  // Apply patient statistics
+  const applyStats = (patientsData, statsPayload = null, totalFromResponse = 0) => {
+    if (statsPayload && typeof statsPayload.totalPatients === 'number') {
+      setStats({
+        totalPatients: statsPayload.totalPatients,
+        activePatients: statsPayload.activePatients ?? 0,
+        inactivePatients: statsPayload.inactivePatients ?? 0,
+        pendingPatients: statsPayload.pendingPatients ?? 0,
+        averageAge: statsPayload.averageAge ?? 0,
+      });
+      return;
     }
-  };
-
-  // Calculate patient statistics
-  const calculateStats = (patientsData) => {
-    // Ensure patientsData is an array
     const safePatientsData = Array.isArray(patientsData) ? patientsData : [];
-    
-    const activePatients = safePatientsData.filter(p => p.status === "active");
-    const inactivePatients = safePatientsData.filter(p => p.status === "inactive");
-    const pendingPatients = safePatientsData.filter(p => p.status === "pending");
-    
-    const totalAge = safePatientsData.reduce((sum, p) => sum + (p.age || 0), 0);
-    const averageAge = safePatientsData.length > 0 ? totalAge / safePatientsData.length : 0;
-    
+    const activePatients = safePatientsData.filter((p) => p.status === 'active');
+    const inactivePatients = safePatientsData.filter((p) => p.status === 'inactive');
+    const pendingPatients = safePatientsData.filter((p) => p.status === 'pending');
+    const ages = safePatientsData
+      .map((p) => (typeof p.age === 'number' ? p.age : parseInt(p.age, 10)))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const averageAge = ages.length > 0
+      ? Math.round(ages.reduce((sum, value) => sum + value, 0) / ages.length)
+      : 0;
     setStats({
-      totalPatients: safePatientsData.length,
+      totalPatients: totalFromResponse || safePatientsData.length,
       activePatients: activePatients.length,
       inactivePatients: inactivePatients.length,
       pendingPatients: pendingPatients.length,
-      averageAge: Math.round(averageAge)
+      averageAge
     });
   };
-
   // Create new patient
   const handleCreatePatient = async () => {
     try {
@@ -185,7 +195,7 @@ export default function Patients() {
         userId: user.id
       };
       
-      const response = await apiService.createPatient(patientData, token);
+      await createPatientRequest({ token, payload: patientData });
       
       toast({
         title: "Paciente Creado",
@@ -225,7 +235,6 @@ export default function Patients() {
       setIsLoading(false);
     }
   };
-
   // Update patient
   const handleUpdatePatient = async () => {
     try {
@@ -237,7 +246,7 @@ export default function Patients() {
         id: selectedPatient.id
       };
       
-      const response = await apiService.updatePatient(selectedPatient.id, patientData, token);
+      await updatePatientRequest({ token, patientId: selectedPatient.id, payload: patientData });
       
       toast({
         title: "Paciente Actualizado",
@@ -262,13 +271,12 @@ export default function Patients() {
       setIsLoading(false);
     }
   };
-
   // Delete patient
   const handleDeletePatient = async () => {
     try {
       setIsLoading(true);
       
-      const response = await apiService.deletePatient(selectedPatient.id, token);
+      await deletePatientRequest({ token, patientId: selectedPatient.id });
       
       toast({
         title: "Paciente Eliminado",
@@ -293,24 +301,36 @@ export default function Patients() {
       setIsLoading(false);
     }
   };
-
   // Export patients
   const handleExportPatients = async () => {
     try {
-      const response = await apiService.exportPatients(token, {
+      const csvContent = await exportPatientsRequest({
+        token,
         status: statusFilter,
         gender: genderFilter,
-        search: searchTerm
+        search: searchTerm,
       });
-      
       // Create download link
-      const blob = new Blob([response.data], { type: 'text/csv' });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `pacientes_smd_vital_${new Date().toISOString().split('T')[0]}.csv`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
       link.click();
-      window.URL.revokeObjectURL(url);
+      
+      // Clean up
+      setTimeout(() => {
+        try {
+          if (link && link.parentNode && document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+        } catch (error) {
+          console.warn('Could not remove download link:', error);
+        }
+        window.URL.revokeObjectURL(url);
+      }, 100);
       
       toast({
         title: "Exportación Exitosa",
@@ -330,7 +350,6 @@ export default function Patients() {
       });
     }
   };
-
   const getStatusColor = (status) => {
     switch (status) {
       case "active": return "green";
@@ -339,7 +358,6 @@ export default function Patients() {
       default: return "gray";
     }
   };
-
   const getStatusText = (status) => {
     switch (status) {
       case "active": return "Activo";
@@ -348,16 +366,13 @@ export default function Patients() {
       default: return status;
     }
   };
-
   const getGenderIcon = (gender) => {
     return gender === "male" ? FaMars : FaVenus;
   };
-
   const handleViewPatient = (patient) => {
     setSelectedPatient(patient);
     onOpen();
   };
-
   const handleEditPatient = (patient) => {
     setSelectedPatient(patient);
     setEditPatient({
@@ -375,25 +390,33 @@ export default function Patients() {
     });
     onEditModalOpen();
   };
-
   const handleDeletePatientClick = (patient) => {
     setSelectedPatient(patient);
     onDeleteModalOpen();
   };
-
   // Filter patients based on search and filters
-  const filteredPatients = Array.isArray(patients) ? patients.filter(patient => {
-    const matchesSearch = !searchTerm || 
-      patient.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.patientId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.email?.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredPatients = React.useMemo(() => {
+    if (!Array.isArray(patients) || patients.length === 0) return [];
     
-    const matchesStatus = !statusFilter || patient.status === statusFilter;
-    const matchesGender = !genderFilter || patient.gender === genderFilter;
-    
-    return matchesSearch && matchesStatus && matchesGender;
-  }) : [];
-
+    try {
+      return patients.filter(patient => {
+        if (!patient || typeof patient !== 'object') return false;
+        
+        const matchesSearch = !searchTerm || 
+          patient.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          patient.patientId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          patient.email?.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesStatus = !statusFilter || patient.status === statusFilter;
+        const matchesGender = !genderFilter || patient.gender === genderFilter;
+        
+        return matchesSearch && matchesStatus && matchesGender;
+      });
+    } catch (error) {
+      console.error('Error filtering patients:', error);
+      return [];
+    }
+  }, [patients, searchTerm, statusFilter, genderFilter]);
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
       {/* Header */}
@@ -450,7 +473,6 @@ export default function Patients() {
           </Button>
         </HStack>
       </Flex>
-
       {/* Estadísticas de Pacientes */}
       <Grid 
         templateColumns={{ base: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr 1fr" }} 
@@ -569,7 +591,6 @@ export default function Patients() {
           </Stat>
         </Box>
       </Grid>
-
       {/* Filtros y Búsqueda */}
       <Box
         bg={useColorModeValue("white", "navy.800")}
@@ -590,14 +611,20 @@ export default function Patients() {
               placeholder="Buscar paciente SMD VITAL..." 
               size={{ base: "md", md: "lg" }}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             />
           </InputGroup>
           <Select 
             placeholder="Filtrar por estado"
             size={{ base: "md", md: "lg" }}
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
           >
             <option value="">Todos los estados</option>
             <option value="active">Activos</option>
@@ -608,7 +635,10 @@ export default function Patients() {
             placeholder="Filtrar por género"
             size={{ base: "md", md: "lg" }}
             value={genderFilter}
-            onChange={(e) => setGenderFilter(e.target.value)}
+            onChange={(e) => {
+              setGenderFilter(e.target.value);
+              setCurrentPage(1);
+            }}
           >
             <option value="">Todos los géneros</option>
             <option value="male">Masculino</option>
@@ -616,7 +646,6 @@ export default function Patients() {
           </Select>
         </Grid>
       </Box>
-
       {/* Tabla de Pacientes */}
       <Box
         bg={useColorModeValue("white", "navy.800")}
@@ -703,8 +732,16 @@ export default function Patients() {
                 </Td>
               </Tr>
             ) : (
-              filteredPatients.map((patient) => (
-              <Tr key={patient.id}>
+              filteredPatients.map((patient, index) => {
+                if (!patient || typeof patient !== 'object') {
+                  console.warn('Invalid patient object at index:', index, patient);
+                  return null;
+                }
+                
+                const patientKey = patient.id || `patient-${index}-${patient.patientId || 'unknown'}`;
+                
+                return (
+              <Tr key={patientKey}>
                 <Td>
                   <HStack spacing={{ base: "10px", md: "15px" }}>
                     <Avatar
@@ -720,7 +757,7 @@ export default function Patients() {
                         isTruncated
                         maxW="150px"
                       >
-                        {patient.name}
+                        {patient.name || 'Sin nombre'}
                       </Text>
                       <Text 
                         fontSize={{ base: "xs", md: "sm" }} 
@@ -728,14 +765,14 @@ export default function Patients() {
                         isTruncated
                         maxW="150px"
                       >
-                        {patient.email}
+                        {patient.email || 'Sin email'}
                       </Text>
                       <Text 
                         fontSize={{ base: "xs", md: "sm" }} 
                         color={textColorSecondary}
                         display={{ base: "block", md: "none" }}
                       >
-                        ID: {patient.patientId} | {patient.age} años
+                        ID: {patient.patientId || 'N/A'} | {patient.age || 'N/A'} años
                       </Text>
                     </VStack>
                   </HStack>
@@ -745,14 +782,14 @@ export default function Patients() {
                   fontSize={{ base: "xs", md: "sm" }}
                   display={{ base: "none", md: "table-cell" }}
                 >
-                  {patient.patientId}
+                  {patient.patientId || 'N/A'}
                 </Td>
                 <Td 
                   color={textColor} 
                   fontSize={{ base: "xs", md: "sm" }}
                   display={{ base: "none", lg: "table-cell" }}
                 >
-                  {patient.age} años
+                  {patient.age || 'N/A'} años
                 </Td>
                 <Td 
                   fontSize={{ base: "xs", md: "sm" }}
@@ -772,21 +809,21 @@ export default function Patients() {
                   isTruncated
                   maxW="120px"
                 >
-                  {patient.phone}
+                  {patient.phone || 'N/A'}
                 </Td>
                 <Td 
                   color={textColor}
                   fontSize={{ base: "xs", md: "sm" }}
                 >
-                  {patient.lastVisit}
+                  {patient.lastVisit || 'N/A'}
                 </Td>
                 <Td>
                   <Badge 
-                    colorScheme={getStatusColor(patient.status)} 
+                    colorScheme={getStatusColor(patient.status || 'pending')} 
                     variant="solid"
                     size={{ base: "sm", md: "md" }}
                   >
-                    {getStatusText(patient.status)}
+                    {getStatusText(patient.status || 'pending')}
                   </Badge>
                 </Td>
                 <Td>
@@ -800,6 +837,7 @@ export default function Patients() {
                       leftIcon={<Icon as={MdVisibility} />}
                       variant="outline"
                       onClick={() => handleViewPatient(patient)}
+                      isDisabled={!patient.id}
                     >
                       <Text display={{ base: "none", sm: "block" }}>Ver</Text>
                     </Button>
@@ -809,6 +847,7 @@ export default function Patients() {
                       variant="outline"
                       colorScheme="blue"
                       onClick={() => handleEditPatient(patient)}
+                      isDisabled={!patient.id}
                     >
                       <Text display={{ base: "none", sm: "block" }}>Editar</Text>
                     </Button>
@@ -818,18 +857,19 @@ export default function Patients() {
                       variant="outline"
                       colorScheme="red"
                       onClick={() => handleDeletePatientClick(patient)}
+                      isDisabled={!patient.id}
                     >
                       <Text display={{ base: "none", sm: "block" }}>Eliminar</Text>
                     </Button>
                   </HStack>
                 </Td>
               </Tr>
-            ))
+                );
+              })
             )}
           </Tbody>
         </Table>
       </Box>
-
       {/* Modal de Detalles del Paciente */}
       <Modal 
         isOpen={isOpen} 
@@ -913,9 +953,7 @@ export default function Patients() {
                     </FormControl>
                   </Grid>
                 </Box>
-
                 <Divider />
-
                 {/* Información de Contacto */}
                 <Box>
                   <Text 
@@ -965,9 +1003,7 @@ export default function Patients() {
                     </FormControl>
                   </Grid>
                 </Box>
-
                 <Divider />
-
                 {/* Información Médica */}
                 <Box>
                   <Text 
@@ -1009,7 +1045,6 @@ export default function Patients() {
                     </FormControl>
                   </Grid>
                 </Box>
-
                 <HStack 
                   spacing={{ base: "5px", md: "10px" }} 
                   justify="center"
@@ -1045,7 +1080,6 @@ export default function Patients() {
           </ModalBody>
         </ModalContent>
       </Modal>
-
       {/* Modal para Crear Nuevo Paciente */}
       <Modal 
         isOpen={isOpen} 
@@ -1216,7 +1250,6 @@ export default function Patients() {
           </ModalBody>
         </ModalContent>
       </Modal>
-
       {/* Modal para Editar Paciente */}
       <Modal 
         isOpen={isEditModalOpen} 
@@ -1379,7 +1412,6 @@ export default function Patients() {
           </ModalBody>
         </ModalContent>
       </Modal>
-
       {/* Modal para Eliminar Paciente */}
       <Modal 
         isOpen={isDeleteModalOpen} 
@@ -1464,3 +1496,4 @@ export default function Patients() {
     </Box>
   );
 }
+

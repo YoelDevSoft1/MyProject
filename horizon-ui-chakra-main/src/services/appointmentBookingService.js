@@ -1,77 +1,49 @@
-// SMD VITAL - Appointment Booking Service
-// Servicio para agendamiento inteligente de citas con manejo de race conditions
+// SMD VITAL - Appointment Booking Service (Optimized)
+// Service for intelligent appointment scheduling with race condition handling
 
 import apiService from './apiService';
 
 class AppointmentBookingService {
   constructor() {
     this.apiService = apiService;
-    this.activeReservations = new Map(); // Cache local de reservas activas
+    this.activeReservations = new Map();
   }
 
   /**
-   * Generar un UUID válido basado en un ID numérico
-   * @param {string} id - ID numérico del doctor
-   * @returns {string} UUID válido
+   * Generate valid UUID from numeric ID
    */
   generateUUIDFromId(id) {
-    console.log('🔧 [generateUUIDFromId] ID recibido:', id, 'Tipo:', typeof id);
-    
-    // Generar un UUID determinístico basado en el ID
     const paddedId = String(id).padStart(4, '0');
-    const uuid = `550e8400-e29b-41d4-a716-${paddedId}${paddedId}${paddedId}`;
-    
-    console.log('🔧 [generateUUIDFromId] Padded ID:', paddedId);
-    console.log('🔧 [generateUUIDFromId] UUID generado:', uuid);
-    console.log('🔧 [generateUUIDFromId] Longitud:', uuid.length);
-    
-    return uuid;
+    return `550e8400-e29b-41d4-a716-${paddedId}${paddedId}${paddedId}`;
   }
 
   /**
-   * Buscar doctores disponibles por especialidad
-   * @param {string} specialty - Especialidad médica
-   * @param {string} token - Token de autenticación
-   * @param {Object} filters - Filtros adicionales
-   * @returns {Promise<Object>} Lista de doctores disponibles
+   * Search available doctors by specialty
    */
   async searchAvailableDoctors(specialty, token, filters = {}) {
     try {
-      console.log('🔍 [AppointmentBookingService] Iniciando búsqueda de doctores');
-      console.log('🔍 [AppointmentBookingService] Especialidad:', specialty);
-      console.log('🔍 [AppointmentBookingService] Token:', token ? 'Presente' : 'Ausente');
-      console.log('🔍 [AppointmentBookingService] Filtros:', filters);
-
       const params = {
-        specialty: specialty,
+        specialty,
         is_active: true,
         ...filters
       };
-
-      console.log('🔍 [AppointmentBookingService] Parámetros:', params);
 
       const response = await this.apiService.makeRequest('/api/doctors/search', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
         },
-        params: params
+        params
       });
 
-      console.log('🔍 [AppointmentBookingService] Respuesta completa:', response);
-
       if (response.success) {
-        console.log('✅ [AppointmentBookingService] Búsqueda exitosa, datos:', response.data);
-        
-        // El backend devuelve una estructura anidada, extraer los doctores
+        // Extract doctors from nested structure
         let doctors = [];
-        if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        if (response.data?.data && Array.isArray(response.data.data)) {
           doctors = response.data.data;
         } else if (Array.isArray(response.data)) {
           doctors = response.data;
         }
-        
-        console.log('✅ [AppointmentBookingService] Doctores extraídos:', doctors);
         
         return {
           success: true,
@@ -79,10 +51,9 @@ class AppointmentBookingService {
         };
       }
 
-      console.error('❌ [AppointmentBookingService] Búsqueda falló:', response);
       return response;
     } catch (error) {
-      console.error('💥 [AppointmentBookingService] Error en búsqueda:', error);
+      console.error('[AppointmentBooking] Error searching doctors:', error);
       return {
         success: false,
         error: error.message || 'Error al buscar doctores'
@@ -91,67 +62,29 @@ class AppointmentBookingService {
   }
 
   /**
-   * Obtener horarios disponibles de un doctor
-   * @param {string} doctorId - ID del doctor
-   * @param {string} date - Fecha en formato ISO
-   * @param {string} token - Token de autenticación
-   * @returns {Promise<Object>} Horarios disponibles
+   * Get available time slots for a doctor
    */
   async getAvailableSlots(doctorId, date, token) {
     try {
-      console.log('🔍 [AppointmentBookingService] Obteniendo horarios disponibles');
-      console.log('🔍 [AppointmentBookingService] Doctor ID:', doctorId);
-      console.log('🔍 [AppointmentBookingService] Fecha recibida:', date);
-      
-      // Convertir fecha a formato YYYY-MM-DD si es necesario
-      let formattedDate = date;
-      if (date.includes('T')) {
-        formattedDate = date.split('T')[0];
-      }
-      console.log('🔍 [AppointmentBookingService] Fecha formateada:', formattedDate);
+      // Format date to YYYY-MM-DD
+      const formattedDate = date.includes('T') ? date.split('T')[0] : date;
 
-      // Verificar si doctorId ya es un UUID válido
+      // Check if doctorId is already a valid UUID
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(doctorId);
-      console.log('🔍 [AppointmentBookingService] Doctor ID es UUID:', isUUID);
-      
-      let uuid;
-      if (isUUID) {
-        // Si ya es un UUID, usarlo directamente
-        uuid = doctorId;
-        console.log('🔍 [AppointmentBookingService] Usando UUID existente:', uuid);
-      } else {
-        // Si no es UUID, generar uno
-        uuid = this.generateUUIDFromId(doctorId);
-        console.log('🔍 [AppointmentBookingService] UUID generado:', uuid);
-      }
-      
-      console.log('🔍 [AppointmentBookingService] UUID final:', uuid);
-      console.log('🔍 [AppointmentBookingService] Longitud del UUID:', uuid.length);
-      console.log('🔍 [AppointmentBookingService] Formato UUID válido:', /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid));
-
-      const requestParams = {
-        doctor_id: uuid,
-        date: formattedDate
-      };
-      
-      console.log('🔧 [AppointmentBookingService] Parámetros de la petición:', requestParams);
-      console.log('🔧 [AppointmentBookingService] URL completa:', `/api/appointments/availability?doctor_id=${uuid}&date=${formattedDate}`);
+      const uuid = isUUID ? doctorId : this.generateUUIDFromId(doctorId);
 
       const response = await this.apiService.makeRequest('/api/appointments/availability', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
         },
-        params: requestParams
+        params: {
+          doctor_id: uuid,
+          date: formattedDate
+        }
       });
 
-      console.log('🔍 [AppointmentBookingService] Respuesta de disponibilidad:', response);
-      console.log('🔍 [AppointmentBookingService] Respuesta completa:', JSON.stringify(response, null, 2));
-
       if (response.success) {
-        console.log('🔍 [AppointmentBookingService] Slots extraídos:', response.data.slots);
-        console.log('🔍 [AppointmentBookingService] Total slots:', response.data.slots?.length || 0);
-        
         return {
           success: true,
           data: response.data.slots || []
@@ -160,7 +93,7 @@ class AppointmentBookingService {
 
       return response;
     } catch (error) {
-      console.error('Error getting available slots:', error);
+      console.error('[AppointmentBooking] Error getting slots:', error);
       return {
         success: false,
         error: error.message || 'Error al obtener horarios disponibles'
@@ -169,17 +102,10 @@ class AppointmentBookingService {
   }
 
   /**
-   * Crear reserva temporal de horario
-   * @param {Object} reservationData - Datos de la reserva
-   * @param {string} token - Token de autenticación
-   * @returns {Promise<Object>} Resultado de la reserva
+   * Create temporary slot reservation
    */
   async createTemporaryReservation(reservationData, token) {
     try {
-      console.log('🔧 [AppointmentBookingService] Creando reserva temporal');
-      console.log('🔧 [AppointmentBookingService] Datos de reserva:', reservationData);
-      console.log('🔧 [AppointmentBookingService] Token:', token ? 'Presente' : 'Ausente');
-      
       const response = await this.apiService.makeRequest('/api/appointments/reserve', {
         method: 'POST',
         headers: {
@@ -188,37 +114,29 @@ class AppointmentBookingService {
         },
         body: JSON.stringify(reservationData)
       });
-      
-      console.log('🔧 [AppointmentBookingService] Respuesta de reserva:', response);
 
       if (response.success) {
-        // response.data contiene {success: true, data: {...}} del backend
-        // Necesitamos extraer los datos reales de la reserva
         const reservation = response.data.data;
         
-        console.log('🔧 [AppointmentBookingService] Reservation data recibida:', reservation);
-        console.log('🔧 [AppointmentBookingService] Reservation ID en data:', reservation.reservation_id);
-        console.log('🔧 [AppointmentBookingService] Estructura completa de reservation:', JSON.stringify(reservation, null, 2));
-        
-        // Guardar en cache local
+        // Store in local cache
         this.activeReservations.set(reservation.reservation_id, {
           ...reservation,
           expires_at: new Date(reservation.expires_at),
           created_at: new Date()
         });
 
-        // Programar limpieza automática
+        // Schedule automatic cleanup
         this._scheduleReservationCleanup(reservation.reservation_id);
 
         return {
           success: true,
-          data: reservation // reservation contiene los datos reales de la reserva
+          data: reservation
         };
       }
 
       return response;
     } catch (error) {
-      console.error('Error creating temporary reservation:', error);
+      console.error('[AppointmentBooking] Error creating reservation:', error);
       return {
         success: false,
         error: error.message || 'Error al crear reserva temporal'
@@ -227,16 +145,13 @@ class AppointmentBookingService {
   }
 
   /**
-   * Confirmar reserva temporal y crear cita definitiva
-   * @param {string} reservationId - ID de la reserva
-   * @param {Object} patientData - Datos del paciente
-   * @param {string} token - Token de autenticación
-   * @returns {Promise<Object>} Resultado de la confirmación
+   * Confirm temporary reservation and create final appointment
    */
   async confirmReservation(reservationId, patientData, token) {
     try {
-      // Verificar que la reserva existe y no ha expirado
+      // Verify reservation exists and hasn't expired
       const reservation = this.activeReservations.get(reservationId);
+      
       if (!reservation) {
         return {
           success: false,
@@ -265,7 +180,7 @@ class AppointmentBookingService {
       });
 
       if (response.success) {
-        // Limpiar reserva del cache local
+        // Clean up reservation from local cache
         this.activeReservations.delete(reservationId);
         
         return {
@@ -276,7 +191,7 @@ class AppointmentBookingService {
 
       return response;
     } catch (error) {
-      console.error('Error confirming reservation:', error);
+      console.error('[AppointmentBooking] Error confirming reservation:', error);
       return {
         success: false,
         error: error.message || 'Error al confirmar la reserva'
@@ -285,10 +200,7 @@ class AppointmentBookingService {
   }
 
   /**
-   * Cancelar reserva temporal
-   * @param {string} reservationId - ID de la reserva
-   * @param {string} token - Token de autenticación
-   * @returns {Promise<Object>} Resultado de la cancelación
+   * Cancel temporary reservation
    */
   async cancelReservation(reservationId, token) {
     try {
@@ -299,12 +211,12 @@ class AppointmentBookingService {
         }
       });
 
-      // Limpiar del cache local independientemente del resultado
+      // Clean from local cache regardless of result
       this.activeReservations.delete(reservationId);
 
       return response;
     } catch (error) {
-      console.error('Error canceling reservation:', error);
+      console.error('[AppointmentBooking] Error canceling reservation:', error);
       return {
         success: false,
         error: error.message || 'Error al cancelar la reserva'
@@ -313,9 +225,7 @@ class AppointmentBookingService {
   }
 
   /**
-   * Obtener estado de una reserva
-   * @param {string} reservationId - ID de la reserva
-   * @returns {Object} Estado de la reserva
+   * Get reservation status
    */
   getReservationStatus(reservationId) {
     const reservation = this.activeReservations.get(reservationId);
@@ -348,8 +258,7 @@ class AppointmentBookingService {
   }
 
   /**
-   * Obtener todas las reservas activas
-   * @returns {Array} Lista de reservas activas
+   * Get all active reservations
    */
   getActiveReservations() {
     const now = new Date();
@@ -362,7 +271,6 @@ class AppointmentBookingService {
           ...reservation
         });
       } else {
-        // Limpiar reservas expiradas
         this.activeReservations.delete(id);
       }
     }
@@ -371,8 +279,7 @@ class AppointmentBookingService {
   }
 
   /**
-   * Programar limpieza automática de reserva
-   * @param {string} reservationId - ID de la reserva
+   * Schedule automatic reservation cleanup
    */
   _scheduleReservationCleanup(reservationId) {
     const reservation = this.activeReservations.get(reservationId);
@@ -383,13 +290,13 @@ class AppointmentBookingService {
     if (timeUntilExpiry > 0) {
       setTimeout(() => {
         this.activeReservations.delete(reservationId);
-        console.log(`Reservation ${reservationId} automatically cleaned up`);
+        console.log(`[AppointmentBooking] Reservation ${reservationId} cleaned up`);
       }, timeUntilExpiry);
     }
   }
 
   /**
-   * Limpiar todas las reservas expiradas
+   * Clean all expired reservations
    */
   cleanupExpiredReservations() {
     const now = new Date();
@@ -407,10 +314,7 @@ class AppointmentBookingService {
   }
 
   /**
-   * Obtener servicios médicos disponibles
-   * @param {string} token - Token de autenticación
-   * @param {Object} filters - Filtros
-   * @returns {Promise<Object>} Lista de servicios
+   * Get available medical services
    */
   async getMedicalServices(token, filters = {}) {
     try {
@@ -424,7 +328,7 @@ class AppointmentBookingService {
 
       return response;
     } catch (error) {
-      console.error('Error getting medical services:', error);
+      console.error('[AppointmentBooking] Error getting services:', error);
       return {
         success: false,
         error: error.message || 'Error al obtener servicios médicos'
@@ -433,11 +337,7 @@ class AppointmentBookingService {
   }
 
   /**
-   * Validar disponibilidad antes de mostrar horarios
-   * @param {string} doctorId - ID del doctor
-   * @param {string} slotDateTime - Fecha y hora del slot
-   * @param {string} token - Token de autenticación
-   * @returns {Promise<Object>} Resultado de la validación
+   * Validate slot availability before showing
    */
   async validateSlotAvailability(doctorId, slotDateTime, token) {
     try {
@@ -455,7 +355,7 @@ class AppointmentBookingService {
 
       return response;
     } catch (error) {
-      console.error('Error validating slot availability:', error);
+      console.error('[AppointmentBooking] Error validating slot:', error);
       return {
         success: false,
         error: error.message || 'Error al validar disponibilidad'
@@ -464,7 +364,7 @@ class AppointmentBookingService {
   }
 }
 
-// Crear instancia singleton
+// Singleton instance
 const appointmentBookingService = new AppointmentBookingService();
 
 export default appointmentBookingService;

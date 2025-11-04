@@ -130,7 +130,7 @@ const ErrorFallback = ({ error, errorInfo, onRetry }) => {
           </Text>
           <VStack align="stretch" spacing={2}>
             {errorSuggestion.solutions.map((solution, index) => (
-              <HStack key={index} align="start">
+              <HStack key={`error-solution-${solution.title}-${index}`} align="start">
                 <Text color="red.500" fontWeight="bold" minW="20px">
                   {index + 1}.
                 </Text>

@@ -274,7 +274,7 @@ services:
       - smd_network
     restart: unless-stopped
 
-  # AI LangGraph Service
+  # AI LangGraph Service (OpenAI only)
   ai-langgraph:
     build:
       context: ./services/ai-langgraph
@@ -287,11 +287,11 @@ services:
       - REDIS_URL=redis://:redis_password_2024@redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - FREE_AI_ENABLED=false
+      - DEFAULT_MODEL=gpt-4o-mini
     volumes:
       - ./services/ai-langgraph/logs:/app/logs
       - ./services/ai-langgraph/temp:/app/temp
-      - ./services/ai-langgraph/models:/app/models
       - ./services/ai-langgraph/data:/app/data
     depends_on:
       - postgres

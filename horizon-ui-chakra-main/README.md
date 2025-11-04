@@ -1,114 +1,222 @@
-# [Horizon UI ⚡️](https://horizon-ui.com/horizon-ui-chakra) [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social&logo=twitter)](https://twitter.com/intent/tweet?url=https://horizon-ui.com/&text=Check%20Horizon%20UI,%20the%20trendiest%20open-source%20admin%20template%20for%20Chakra%20UI%20&%20React!)
+# SMD VITAL - Sistema Médico Digital
 
-![version](https://img.shields.io/badge/version-3.0.0-brightgreen.svg)
+![version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)
 ![license](https://img.shields.io/badge/license-MIT-blue.svg)
-[![GitHub issues open](https://img.shields.io/github/issues/horizon-ui/horizon-ui-chakra.svg?maxAge=2592000)](https://github.com/horizon-ui/horizon-ui-chakra/issues?q=is%3Aopen+is%3Aissue)
 
-<p>&nbsp;</p>
+## 🏥 Descripción
 
-[<img alt="Horizon UI" src="https://i.ibb.co/fdyTwz1/introduction-image-2.png" /> ](https://github.com/horizon-ui/horizon-ui-chakra)
+SMD VITAL es un sistema médico digital completo desarrollado con React y Chakra UI, diseñado para gestionar citas médicas, historiales clínicos, pagos y notificaciones en tiempo real.
 
-<p>&nbsp;</p>
+## ✨ Características Principales
 
-Get started and build your dream web app with Horizon UI, the most trendiest &
-innovative Open Source Admin Template for Chakra UI & React!
+### 🔐 Autenticación
+- Login con email y contraseña
+- Autenticación con Google OAuth
+- Gestión de sesiones seguras
+- Protección de rutas
 
----
+### 👥 Gestión de Usuarios
+- Perfiles de pacientes y doctores
+- Información médica completa
+- Historial de actividad
+- Logs de seguridad
+- Preferencias personalizables
 
-### Introduction
+### 📅 Sistema de Citas
+- Calendario interactivo
+- Reserva de citas médicas
+- Gestión de disponibilidad
+- Recordatorios automáticos
 
-Designed for those who like modern UI elements and beautiful websites. Made of
-hundred of elements, designed blocks and fully coded pages, Horizon UI is ready
-to help you create stunning websites and webapps.
+### 🏥 Registros Médicos
+- Historial clínico digital
+- Prescripciones médicas
+- Signos vitales
+- Alergias y medicamentos
 
-Save hundreds of hours trying to create and develop a dashboard from scratch.
-The fastest, most responsive & trendiest dashboard is here. Seriously.
+### 💳 Sistema de Pagos
+- Procesamiento de pagos
+- Facturación digital
+- Historial de transacciones
+- Múltiples métodos de pago
 
-With Horizon UI you will find many examples for pages like NFTs Pages,
-Authentication Pages, Profile and so on. Just choose between a Basic Design or a
-cover and you are good to go!
+### 🔔 Notificaciones
+- Notificaciones en tiempo real
+- Recordatorios de citas
+- Alertas médicas
+- Configuración personalizada
 
-### 🎉 [NEW] Horizon UI Components
+### 🤖 IA Médica
+- Consultas inteligentes
+- Análisis de síntomas
+- Recomendaciones médicas
+- Chat médico asistido por IA
 
-All the main components from both versions, this will help you to see and interact with all & the latest added components of Horizon (also, new components are on the way, stay tuned)! ⚡️
-<a href="https://horizon-ui.com/components/?ref=readme-horizon" target="_blank">See all components</a>
+## 🚀 Instalación y Configuración
 
-### Documentation
+### Prerrequisitos
+- Node.js (versión LTS)
+- npm o yarn
+- Docker y Docker Compose
 
-Each element is well presented in a very complex documentation. You can read
-more about the <a href="https://horizon-ui.com/documentation/docs/introduction?ref=readme-horizon" target="_blank">documentation
-here.</a>
+### Instalación
 
-### Quick Start
-
-Install Horizon UI by running either of the following:
-
-- Install NodeJS LTS from
-  [NodeJs Official Page](https://nodejs.org/en/?ref=horizon-documentation)
-  (NOTE: Product only works with LTS version)
-
-Clone the repository with the following command:
-
+1. **Clonar el repositorio:**
 ```bash
-git clone https://github.com/horizon-ui/horizon-ui-chakra.git
+git clone <repository-url>
+cd smd-vital-frontend
 ```
 
-Run in terminal this command:
-
+2. **Instalar dependencias:**
 ```bash
 npm install
 ```
 
-Then run this command to start your local server
+3. **Configurar variables de entorno:**
+```bash
+cp .env.example .env
+```
 
+4. **Configurar el archivo .env:**
+```env
+REACT_APP_API_URL=http://localhost:8000
+REACT_APP_GOOGLE_CLIENT_ID=your_google_client_id
+REACT_APP_GOOGLE_CLIENT_SECRET=your_google_client_secret
+```
+
+5. **Iniciar el servidor de desarrollo:**
 ```bash
 npm start
 ```
 
-### Example Pages
+## 🏗️ Arquitectura
 
-If you want to get inspiration or just show something directly to your clients,
-you can jump start your development with our pre-built example pages. You will
-be able to quickly set up the basic structure for your web project. View
-<a href="https://horizon-ui.com/horizon-ui-chakra/?ref=readme-horizon" target="_blank">example
-pages here.</a>
+### Frontend
+- **React 18** - Biblioteca principal
+- **Chakra UI** - Sistema de diseño
+- **React Router** - Navegación
+- **Axios** - Cliente HTTP
+- **Context API** - Gestión de estado
 
-### Versions
+### Backend (Microservicios)
+- **Auth Service** - Autenticación y autorización
+- **User Service** - Gestión de usuarios y perfiles
+- **Appointment Service** - Sistema de citas
+- **Medical Records Service** - Registros médicos
+- **Payment Service** - Procesamiento de pagos
+- **Notification Service** - Notificaciones
+- **AI Service** - Inteligencia artificial médica
 
-| Free Version                                                                                                       | PRO Version                                                                                                               |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| [![Horizon UI](https://i.ibb.co/fdyTwz1/introduction-image-2.png)](https://www.horizon-ui.com/?ref=readme-horizon) | [![Horizon UI PRO](https://i.ibb.co/R6jFKRM/introduction-image-1.png)](https://www.horizon-ui.com/pro?ref=readme-horizon) |
+### Infraestructura
+- **Docker** - Contenedores
+- **Nginx** - API Gateway
+- **PostgreSQL** - Base de datos
+- **Redis** - Cache y sesiones
 
-### Figma Version
+## 📁 Estructura del Proyecto
 
-Horizon UI is available in Figma format as well! Check it out on Figma
-Community! 🎨
-[See the Horizon UI Figma design files](https://bit.ly/horizon-figma)
+```
+src/
+├── components/          # Componentes reutilizables
+│   ├── appointments/    # Componentes de citas
+│   ├── calendar/        # Componentes de calendario
+│   ├── charts/          # Gráficos y estadísticas
+│   ├── forms/           # Formularios
+│   └── ui/              # Componentes de interfaz
+├── views/               # Páginas principales
+│   ├── admin/           # Panel de administración
+│   ├── auth/            # Páginas de autenticación
+│   └── medical/         # Módulos médicos
+├── services/            # Servicios de API
+├── contexts/            # Contextos de React
+├── hooks/               # Hooks personalizados
+├── utils/               # Utilidades
+└── theme/               # Configuración de tema
+```
 
-### Reporting Issues
+## 🔧 Scripts Disponibles
 
-We use GitHub Issues as the official bug tracker for the Horizon UI. Here are
-some advices for our users that want to report an issue:
+```bash
+# Desarrollo
+npm start                 # Inicia el servidor de desarrollo
+npm run build            # Construye la aplicación para producción
+npm test                 # Ejecuta las pruebas
 
-1. Make sure that you are using the latest version of the Horizon UI Dashbaord.
-   Check the CHANGELOG from your dashboard on our
-   [CHANGE LOG File](https://github.com/horizon-ui/horizon-ui-chakra/blob/main/CHANGELOG.md?ref=readme-horizon).
-2. Providing us reproducible steps for the issue will shorten the time it takes
-   for it to be fixed.
-3. Some issues may be browser specific, so specifying in what browser you
-   encountered the issue might help.
+# Docker
+docker-compose up        # Inicia todos los servicios
+docker-compose down      # Detiene todos los servicios
+```
+
+## 🌐 URLs de Desarrollo
+
+- **Frontend:** http://localhost:3001
+- **API Gateway:** http://localhost:8000
+- **Documentación API:** http://localhost:8000/docs
+
+## 📱 Módulos Principales
+
+### Dashboard
+- Resumen de estadísticas
+- Gráficos de rendimiento
+- Accesos rápidos
+
+### Gestión de Citas
+- Calendario de citas
+- Reserva de citas
+- Historial de citas
+
+### Registros Médicos
+- Historial clínico
+- Prescripciones
+- Signos vitales
+
+### Pagos
+- Procesamiento de pagos
+- Facturación
+- Historial de transacciones
+
+### Administración
+- Gestión de usuarios
+- Configuración del sistema
+- Logs de auditoría
+
+## 🔒 Seguridad
+
+- Autenticación JWT
+- Cifrado de datos sensibles
+- Validación de entrada
+- Protección CSRF
+- Headers de seguridad
+
+## 🚀 Despliegue
+
+### Desarrollo
+```bash
+npm start
+```
+
+### Producción
+```bash
+npm run build
+docker-compose -f docker-compose.prod.yml up
+```
+
+## 🤝 Contribución
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+## 📄 Licencia
+
+Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
+
+## 📞 Soporte
+
+Para soporte técnico o preguntas, contacta al equipo de desarrollo.
 
 ---
 
-### Community
-
-Connect with the community! Feel free to ask questions, report issues, and meet
-new people that already use Horizon UI!
-
-💬 [Join the #HorizonUI Discord Community!](https://discord.gg/f6tEKFBd4m)
-
-### Copyright and license
-
-⭐️ [Copyright 2023 Simmmple ](https://www.simmmple.com/?ref=readme-horizon)
-
-📄 [Horizon UI License](https://www.simmmple.com/licenses?ref=readme-horizon)
+**SMD VITAL** - Transformando la atención médica digital 🏥✨

@@ -25,7 +25,7 @@ export const AppointmentCardSkeleton = memo(({ count = 1 }) => {
   return (
     <>
       {Array.from({ length: count }).map((_, index) => (
-        <Card key={index} bg={cardBg}>
+        <Card key={`skeleton-card-${index}`} bg={cardBg}>
           <CardBody>
             <VStack align="stretch" spacing={3}>
               {/* Header */}
@@ -85,7 +85,7 @@ export const TableRowSkeleton = memo(({ columns = 7, rows = 5 }) => (
 export const StatsDashboardSkeleton = memo(() => (
   <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap={4}>
     {Array.from({ length: 4 }).map((_, index) => (
-      <Card key={index}>
+      <Card key={`stats-skeleton-${index}`}>
         <CardBody>
           <VStack align="stretch" spacing={3}>
             <HStack justify="space-between">
@@ -122,7 +122,7 @@ export const FiltersSkeleton = memo(() => (
         {/* Grid de filtros */}
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={4}>
           {Array.from({ length: 6 }).map((_, index) => (
-            <VStack key={index} align="stretch" spacing={2}>
+            <VStack key={`filter-skeleton-${index}`} align="stretch" spacing={2}>
               <Skeleton height="16px" width="60%" />
               <Skeleton height="40px" />
             </VStack>
@@ -161,14 +161,14 @@ export const CalendarSkeleton = memo(() => (
     <SimpleGrid columns={7} gap={1}>
       {/* Días de la semana */}
       {Array.from({ length: 7 }).map((_, index) => (
-        <Box key={index} p={2} textAlign="center">
+        <Box key={`weekday-skeleton-${index}`} p={2} textAlign="center">
           <Skeleton height="20px" />
         </Box>
       ))}
       
       {/* Días del mes */}
       {Array.from({ length: 35 }).map((_, index) => (
-        <Box key={index} minH="120px" p={2} border="1px solid" borderColor="gray.200">
+        <Box key={`day-skeleton-${index}`} minH="120px" p={2} border="1px solid" borderColor="gray.200">
           <VStack align="stretch" spacing={1}>
             <Skeleton height="16px" width="20px" />
             <Skeleton height="12px" />
@@ -186,7 +186,7 @@ export const CalendarSkeleton = memo(() => (
 export const AlertsSkeleton = memo(({ count = 3 }) => (
   <VStack spacing={3} align="stretch">
     {Array.from({ length: count }).map((_, index) => (
-      <Box key={index} p={4} borderRadius="md" border="1px solid" borderColor="gray.200">
+      <Box key={`alert-skeleton-${index}`} p={4} borderRadius="md" border="1px solid" borderColor="gray.200">
         <HStack spacing={3}>
           <SkeletonCircle size="6" />
           <VStack align="start" spacing={2} flex="1">
@@ -206,7 +206,7 @@ export const AlertsSkeleton = memo(({ count = 3 }) => (
 export const PerformanceMetricsSkeleton = memo(() => (
   <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap={4}>
     {Array.from({ length: 4 }).map((_, index) => (
-      <Card key={index}>
+      <Card key={`performance-skeleton-${index}`}>
         <CardBody>
           <VStack align="stretch" spacing={3}>
             <HStack justify="space-between">
@@ -231,7 +231,7 @@ export const PerformanceMetricsSkeleton = memo(() => (
 export const CircularIndicatorsSkeleton = memo(() => (
   <SimpleGrid columns={{ base: 1, md: 3 }} gap={6}>
     {Array.from({ length: 3 }).map((_, index) => (
-      <VStack key={index} spacing={3}>
+      <VStack key={`circular-skeleton-${index}`} spacing={3}>
         <Skeleton height="16px" width="120px" />
         <SkeletonCircle size="120px" />
         <Skeleton height="14px" width="100px" />
@@ -251,7 +251,7 @@ export const ContentSkeleton = memo(({
   <VStack align="stretch" spacing={spacing}>
     {Array.from({ length: lines }).map((_, index) => (
       <Skeleton
-        key={index}
+        key={`text-skeleton-${index}`}
         height="20px"
         width={index === lines - 1 ? lastLineWidth : "100%"}
       />
@@ -298,7 +298,7 @@ export const PageSkeleton = memo(() => (
               <thead>
                 <tr>
                   {Array.from({ length: 7 }).map((_, index) => (
-                    <th key={index} style={{ padding: '12px' }}>
+                    <th key={`table-header-skeleton-${index}`} style={{ padding: '12px' }}>
                       <Skeleton height="20px" />
                     </th>
                   ))}

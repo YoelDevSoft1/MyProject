@@ -5,6 +5,7 @@ Sistema de métricas de salud con análisis avanzado
 """
 
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -26,6 +27,16 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 app = FastAPI(title="SMD Vital Health Metrics Service", version="1.0.0")
+
+allowed_origins = os.getenv("MEDICAL_RECORDS_ALLOWED_ORIGINS", "http://localhost:3001,http://localhost:3000").split(",")
+allowed_origins = [origin.strip() for origin in allowed_origins if origin.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins or ['*'],
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 
 # Logging
 logging.basicConfig(level=logging.INFO)

@@ -37,5 +37,5 @@ RUN mkdir -p /app/logs /app/temp /app/models /app/data
 EXPOSE 8008
 
 # Comando por defecto
-CMD ["uvicorn", "main_lightweight:app", "--host", "0.0.0.0", "--port", "8008", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8008", "--reload"]
 

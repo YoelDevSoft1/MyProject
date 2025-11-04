@@ -207,7 +207,7 @@ export const ConnectionStatus = memo(() => {
               </Text>
               <VStack align="stretch" spacing={2}>
                 {getSolutions().map((solution, index) => (
-                  <Box key={index} p={2} bg="gray.50" borderRadius="md">
+                  <Box key={`solution-${solution.title}-${index}`} p={2} bg="gray.50" borderRadius="md">
                     <Text fontSize="xs" fontWeight="bold">
                       {solution.title}
                     </Text>

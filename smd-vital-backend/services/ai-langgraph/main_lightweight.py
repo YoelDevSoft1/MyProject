@@ -41,7 +41,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
 FREE_AI_ENABLED = os.getenv("FREE_AI_ENABLED", "true").lower() == "true"
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "phi")  # Modelo más rápido por defecto
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
 
 # Pydantic models
 class AIQueryRequest(BaseModel):
@@ -161,9 +161,17 @@ app = FastAPI(
 )
 
 # CORS middleware
+frontend_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001"],
+    allow_origins=frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -366,28 +374,12 @@ async def get_models():
     """Get available AI models"""
     models = []
     
-    # Add free AI models
-    if free_ai_service:
-        free_models = await free_ai_service.list_models()
-        if "available_models" in free_models:
-            for model_name in free_models["available_models"]:
-                model_info = free_models.get("model_info", {}).get(model_name, {})
-                models.append({
-                    "name": model_name,
-                    "provider": "ollama",
-                    "type": "text",
-                    "max_tokens": 4000,
-                    "free": True,
-                    "description": model_info.get("description", ""),
-                    "memory_required": model_info.get("memory_required", "4GB"),
-                    "best_for": model_info.get("best_for", "")
-                })
-    
+    # Free AI deshabilitado por defecto
     # Add OpenAI models
     if OPENAI_API_KEY:
         models.extend([
-            {"name": "gpt-3.5-turbo", "provider": "openai", "type": "text", "max_tokens": 4000, "free": False},
-            {"name": "gpt-4", "provider": "openai", "type": "text", "max_tokens": 8000, "free": False}
+            {"name": "gpt-4o-mini", "provider": "openai", "type": "text", "max_tokens": 16000, "free": False},
+            {"name": "gpt-4o", "provider": "openai", "type": "text", "max_tokens": 128000, "free": False}
         ])
     
     return {"models": models, "free_ai_enabled": FREE_AI_ENABLED}
@@ -395,11 +387,8 @@ async def get_models():
 # Free AI specific endpoints
 @app.get("/ai/free/models")
 async def get_free_models():
-    """Get available free AI models"""
-    if not free_ai_service:
-        raise HTTPException(status_code=503, detail="Free AI service not available")
-    
-    return await free_ai_service.list_models()
+    """Free AI deshabilitado"""
+    raise HTTPException(status_code=503, detail="Free AI service disabled")
 
 @app.post("/ai/free/install/{model_name}")
 async def install_free_model(model_name: str):
@@ -442,51 +431,9 @@ async def query_free_ai(request: AIQueryRequest):
     return result
 
 @app.post("/ai/free/stream")
-async def stream_free_ai(request: AIQueryRequest):
-    """Stream free AI response"""
-    if not free_ai_service:
-        raise HTTPException(status_code=503, detail="Free AI service not available")
-    
-    model = request.model or DEFAULT_MODEL
-    context_str = json.dumps(request.context) if request.context else ""
-    
-    async def generate_stream():
-        query_id = str(uuid.uuid4())
-        try:
-            async for chunk in free_ai_service.stream_response(
-                prompt=request.query,
-                model=model,
-                context=context_str
-            ):
-                yield {
-                    "event": "chunk",
-                    "data": json.dumps({
-                        "query_id": query_id,
-                        "chunk": chunk,
-                        "is_final": False,
-                        "model_used": model
-                    })
-                }
-            
-            # Send final chunk
-            yield {
-                "event": "chunk", 
-                "data": json.dumps({
-                    "query_id": query_id,
-                    "chunk": "",
-                    "is_final": True,
-                    "model_used": model
-                })
-            }
-            
-        except Exception as e:
-            logger.error(f"Error in free AI stream: {e}")
-            yield {
-                "event": "error",
-                "data": json.dumps({"error": str(e)})
-            }
-    
-    return EventSourceResponse(generate_stream())
+async def stream_free_ai(_: AIQueryRequest):
+    """Free AI deshabilitado"""
+    raise HTTPException(status_code=503, detail="Free AI service disabled")
 
 # Medical-specific endpoints
 @app.post("/ai/medical/diagnosis")

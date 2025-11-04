@@ -1,0 +1,627 @@
+@use 'sass:map';
+@use '@angular/material' as mat;
+@use '@angular/material/core/theming/palettes' as mat-palettes;
+
+/* -------------------------------------------------------
+   Angular Material Theme Configuration
+------------------------------------------------------- */
+
+$primary-palette: mat-palettes.$blue-palette;
+$secondary-palette: mat-palettes.$cyan-palette;
+$warn-palette: mat-palettes.$red-palette;
+
+$font-family-base: 'Inter', 'Poppins', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+
+$typography-config: (
+  plain-family: $font-family-base,
+  brand-family: ('Poppins', 'Inter', 'Roboto', sans-serif),
+  regular-weight: 400,
+  medium-weight: 600,
+  bold-weight: 700
+);
+
+$theme: mat.define-theme((
+  color: (
+    theme-type: light,
+    primary: $primary-palette,
+    tertiary: $secondary-palette
+  ),
+  typography: $typography-config,
+  density: (
+    scale: 0
+  )
+));
+
+@include mat.core();
+@include mat.all-component-themes($theme);
+@include mat.all-component-typographies($theme);
+@include mat.all-component-densities($theme);
+
+/* -------------------------------------------------------
+   Design Tokens (CSS Custom Properties)
+------------------------------------------------------- */
+
+$primary-40: map.get($primary-palette, 40);
+$primary-50: map.get($primary-palette, 50);
+$primary-60: map.get($primary-palette, 60);
+$primary-80: map.get($primary-palette, 80);
+$primary-90: map.get($primary-palette, 90);
+
+$secondary-40: map.get($secondary-palette, 40);
+$secondary-60: map.get($secondary-palette, 60);
+$secondary-80: map.get($secondary-palette, 80);
+$secondary-90: map.get($secondary-palette, 90);
+
+$warn-40: map.get($warn-palette, 40);
+$warn-80: map.get($warn-palette, 80);
+
+$neutral-90: map.get($primary-palette, neutral, 90);
+$neutral-20: map.get($primary-palette, neutral, 20);
+$neutral-30: map.get($primary-palette, neutral, 30);
+
+:root {
+  color-scheme: light;
+  --brand-primary-40: #{$primary-40};
+  --brand-primary-50: #{$primary-50};
+  --brand-primary-60: #{$primary-60};
+  --brand-primary-80: #{$primary-80};
+  --brand-primary-90: #{$primary-90};
+  --brand-secondary-40: #{$secondary-40};
+  --brand-secondary-60: #{$secondary-60};
+  --brand-secondary-80: #{$secondary-80};
+  --brand-secondary-90: #{$secondary-90};
+  --brand-warn-40: #{$warn-40};
+  --brand-warn-80: #{$warn-80};
+  --brand-neutral-90: #{$neutral-90};
+  --brand-neutral-30: #{$neutral-30};
+  --brand-neutral-20: #{$neutral-20};
+
+  --surface-background: #f4f6fb;
+  --surface-card: #ffffff;
+  --surface-card-elevated: rgba(255, 255, 255, 0.94);
+  --surface-glass: rgba(255, 255, 255, 0.66);
+  --surface-overlay: rgba(15, 23, 42, 0.6);
+
+  --border-color: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.16);
+  --shadow-xs: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 10px 25px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 20px 45px rgba(15, 23, 42, 0.12);
+
+  --text-color: #0f172a;
+  --text-secondary: rgba(15, 23, 42, 0.65);
+  --text-muted: rgba(15, 23, 42, 0.44);
+  --text-on-primary: #ffffff;
+
+  --font-family-base: 'Inter', 'Poppins', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-display: 'Poppins', 'Inter', 'Roboto', sans-serif;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 2.5rem;
+  --space-8: 3rem;
+
+  --layout-max-width: 1200px;
+  --layout-sidebar-width: 260px;
+}
+
+$selection-color: map.get($secondary-palette, 60);
+
+/* -------------------------------------------------------
+   Base Reset & Typography
+------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: var(--font-family-base);
+  background: radial-gradient(circle at top left, rgba(93, 135, 255, 0.08), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(45, 212, 191, 0.08), transparent 55%),
+    var(--surface-background);
+  color: var(--text-color);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+::selection {
+  background: rgba($selection-color, 0.25);
+  color: inherit;
+}
+
+a {
+  color: var(--brand-primary-60);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--brand-primary-80);
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* -------------------------------------------------------
+   Layout Helpers & Containers
+------------------------------------------------------- */
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  background: transparent;
+}
+
+.app-main-container {
+  min-height: calc(100vh - 64px);
+  padding: var(--space-5) var(--space-6);
+  background: transparent;
+}
+
+.container,
+.container-fluid {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.container {
+  max-width: var(--layout-max-width);
+  padding: 0 var(--space-5);
+}
+
+.container-fluid {
+  padding: 0 var(--space-4);
+}
+
+.grid-auto-fit {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.surface-card {
+  background: var(--surface-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+}
+
+.surface-glass {
+  background: var(--surface-glass);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-sm);
+}
+
+.section-title {
+  font-family: var(--font-family-display);
+  font-weight: 600;
+  font-size: 1.75rem;
+  margin-bottom: var(--space-3);
+}
+
+.section-subtitle {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin-bottom: var(--space-5);
+}
+
+/* -------------------------------------------------------
+   Angular Material Overrides
+------------------------------------------------------- */
+
+mat-toolbar {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.98), rgba(30, 64, 175, 0.92));
+  color: var(--text-on-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+mat-sidenav {
+  width: var(--layout-sidebar-width);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88));
+  color: rgba(255, 255, 255, 0.82);
+  border-right: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+mat-sidenav mat-nav-list a {
+  border-radius: var(--radius-sm);
+  margin: 4px 12px;
+  padding: 10px 16px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+mat-sidenav mat-nav-list a.active,
+mat-sidenav mat-nav-list a:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(4px);
+}
+
+mat-card {
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  box-shadow: var(--shadow-sm) !important;
+  background: var(--surface-card);
+}
+
+mat-card-header {
+  padding-bottom: var(--space-3) !important;
+}
+
+mat-card-title,
+mat-card-subtitle {
+  font-family: var(--font-family-display);
+}
+
+.mat-mdc-button-base,
+.mat-mdc-unelevated-button,
+.mat-mdc-raised-button,
+.mat-mdc-outlined-button {
+  border-radius: var(--radius-sm) !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px;
+}
+
+.mat-mdc-form-field {
+  width: 100%;
+}
+
+.mat-mdc-form-field-appearance-outline .mdc-notched-outline__leading,
+.mat-mdc-form-field-appearance-outline .mdc-notched-outline__notch,
+.mat-mdc-form-field-appearance-outline .mdc-notched-outline__trailing {
+  border-radius: var(--radius-sm);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.mat-mdc-form-field-appearance-outline.mat-focused .mdc-notched-outline__leading,
+.mat-mdc-form-field-appearance-outline.mat-focused .mdc-notched-outline__notch,
+.mat-mdc-form-field-appearance-outline.mat-focused .mdc-notched-outline__trailing {
+  border-width: 2px;
+}
+
+.mat-mdc-chip-set .mat-mdc-standard-chip {
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.04);
+  font-weight: 500;
+}
+
+.mat-mdc-menu-panel {
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-md) !important;
+  padding: var(--space-2) 0;
+}
+
+/* -------------------------------------------------------
+   Tables & Data Displays
+------------------------------------------------------- */
+
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-sm);
+}
+
+table.data-table thead {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+table.data-table th,
+table.data-table td {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  color: var(--text-secondary);
+}
+
+table.data-table tbody tr:hover {
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.status-positive {
+  color: #155724;
+  background: rgba(56, 172, 108, 0.18);
+}
+
+.status-warning {
+  color: #8a6d3b;
+  background: rgba(255, 193, 7, 0.2);
+}
+
+.status-danger {
+  color: #b71c1c;
+  background: rgba(244, 67, 54, 0.18);
+}
+
+/* -------------------------------------------------------
+   Utility Classes
+------------------------------------------------------- */
+
+.text-center { text-align: center !important; }
+.text-start { text-align: left !important; }
+.text-end { text-align: right !important; }
+.text-muted { color: var(--text-muted) !important; }
+.text-secondary { color: var(--text-secondary) !important; }
+.text-primary { color: var(--brand-primary-60) !important; }
+.text-success { color: #1b873f !important; }
+.text-danger { color: #c62828 !important; }
+
+.fw-bold { font-weight: 700 !important; }
+.fw-semibold { font-weight: 600 !important; }
+.fw-medium { font-weight: 500 !important; }
+
+.d-flex { display: flex !important; }
+.d-grid { display: grid !important; }
+.d-inline-flex { display: inline-flex !important; }
+.flex-column { flex-direction: column !important; }
+.flex-wrap { flex-wrap: wrap !important; }
+.align-center { align-items: center !important; }
+.justify-between { justify-content: space-between !important; }
+.justify-center { justify-content: center !important; }
+.gap-1 { gap: var(--space-1) !important; }
+.gap-2 { gap: var(--space-2) !important; }
+.gap-3 { gap: var(--space-3) !important; }
+.gap-4 { gap: var(--space-4) !important; }
+
+.rounded-sm { border-radius: var(--radius-sm) !important; }
+.rounded-md { border-radius: var(--radius-md) !important; }
+.rounded-lg { border-radius: var(--radius-lg) !important; }
+
+.shadow-xs { box-shadow: var(--shadow-xs) !important; }
+.shadow-sm { box-shadow: var(--shadow-sm) !important; }
+.shadow-md { box-shadow: var(--shadow-md) !important; }
+
+.m-0 { margin: 0 !important; }
+.m-auto { margin: auto !important; }
+.mt-0 { margin-top: 0 !important; }
+.mt-1 { margin-top: var(--space-1) !important; }
+.mt-2 { margin-top: var(--space-2) !important; }
+.mt-3 { margin-top: var(--space-3) !important; }
+.mt-4 { margin-top: var(--space-4) !important; }
+.mt-5 { margin-top: var(--space-5) !important; }
+.mb-0 { margin-bottom: 0 !important; }
+.mb-1 { margin-bottom: var(--space-1) !important; }
+.mb-2 { margin-bottom: var(--space-2) !important; }
+.mb-3 { margin-bottom: var(--space-3) !important; }
+.mb-4 { margin-bottom: var(--space-4) !important; }
+.mb-5 { margin-bottom: var(--space-5) !important; }
+.ms-auto { margin-left: auto !important; }
+.me-auto { margin-right: auto !important; }
+
+.p-0 { padding: 0 !important; }
+.p-2 { padding: var(--space-2) !important; }
+.p-3 { padding: var(--space-3) !important; }
+.p-4 { padding: var(--space-4) !important; }
+.p-5 { padding: var(--space-5) !important; }
+.px-4 { padding-inline: var(--space-4) !important; }
+.py-3 { padding-block: var(--space-3) !important; }
+.py-4 { padding-block: var(--space-4) !important; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.badge-soft-primary {
+  color: var(--brand-primary-60);
+  background: rgba(63, 131, 248, 0.16);
+}
+
+.badge-soft-secondary {
+  color: var(--brand-secondary-60);
+  background: rgba(45, 212, 191, 0.16);
+}
+
+/* -------------------------------------------------------
+   Feedback / Skeletons / Misc
+------------------------------------------------------- */
+
+.elevated-glow {
+  box-shadow: 0 20px 45px rgba(59, 130, 246, 0.18), 0 12px 22px rgba(13, 148, 136, 0.14);
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.18) 25%, rgba(148, 163, 184, 0.1) 37%, rgba(148, 163, 184, 0.18) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-loading 1.4s ease infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+.glass-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--surface-overlay);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  z-index: 1200;
+}
+
+.scroll-y {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.32) transparent;
+}
+
+.scroll-y::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-y::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-y::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.18);
+  border-radius: 999px;
+}
+
+/* -------------------------------------------------------
+   Responsive Adaptations
+------------------------------------------------------- */
+
+@media (max-width: 1200px) {
+  .app-main-container {
+    padding: var(--space-4);
+  }
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  mat-sidenav {
+    width: 100%;
+  }
+
+  .container {
+    padding: 0 var(--space-4);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-main-container {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .surface-card {
+    padding: var(--space-4);
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .app-main-container {
+    padding: var(--space-3) var(--space-2);
+  }
+
+  .container,
+  .container-fluid {
+    padding: 0 var(--space-2);
+  }
+
+  .mat-mdc-button-base,
+  .mat-mdc-unelevated-button,
+  .mat-mdc-raised-button,
+  .mat-mdc-outlined-button {
+    width: 100%;
+  }
+}
+
+/* -------------------------------------------------------
+   Print Styles
+------------------------------------------------------- */
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  .surface-card,
+  mat-card {
+    box-shadow: none !important;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* -------------------------------------------------------
+   Accessibility Helpers
+------------------------------------------------------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.55);
+  outline-offset: 2px;
+  transition: outline 0.15s ease;
+}
+$selection-color: map.get($secondary-palette, 60);

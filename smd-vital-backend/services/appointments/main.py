@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 import logging
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import uuid
 from contextlib import asynccontextmanager
 
@@ -83,19 +83,14 @@ app = FastAPI(
 )
 
 # ===== CONFIGURACIÓN CORS =====
-# CORS deshabilitado en el servicio - Nginx se encarga de CORS
-# Esto evita headers duplicados que causan errores CORS
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["http://localhost:3001"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-# CORS is handled by Nginx API Gateway
-# No need for CORS middleware in individual microservices
+# CORS habilitado para desarrollo local
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=["*"],
+)
 
 # Health Check
 @app.get("/health", tags=["Health"])
@@ -440,6 +435,146 @@ async def validate_slot_availability(validation_data: dict):
     except Exception as e:
         logger.error(f"Error validating slot availability: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@app.get("/medical-services", response_model=List[Dict[str, Any]], tags=["Medical Services"])
+async def get_medical_services(
+    category: Optional[str] = None,
+    specialty: Optional[str] = None,
+    is_active: bool = True,
+    limit: int = 50
+):
+    """Obtener lista de servicios médicos disponibles"""
+    try:
+        # Datos de ejemplo - en producción se consultaría la base de datos
+        medical_services_data = [
+            {
+                "id": "ms_1",
+                "name": "Consulta General",
+                "code": "CONS_GEN",
+                "description": "Consulta médica general de medicina interna",
+                "category": "Medicina General",
+                "specialty": "Medicina Interna",
+                "department": "Consultorios Externos",
+                "default_duration_minutes": 30,
+                "preparation_time_minutes": 5,
+                "cleanup_time_minutes": 5,
+                "is_active": True,
+                "requires_referral": False,
+                "is_emergency_service": False,
+                "telemedicine_available": True,
+                "base_price": 50000.00,
+                "insurance_price": 25000.00,
+                "emergency_surcharge": 10000.00,
+                "age_restrictions": None,
+                "gender_restrictions": None,
+                "special_requirements": None,
+                "instructions": "Ayuno de 8 horas recomendado",
+                "contraindications": "Pacientes con alergias conocidas",
+                "equipment_needed": ["Estetoscopio", "Tensiómetro", "Termómetro"],
+                "created_at": "2024-01-15T10:00:00Z",
+                "updated_at": "2024-01-15T10:00:00Z"
+            },
+            {
+                "id": "ms_2",
+                "name": "Consulta Cardiológica",
+                "code": "CONS_CARD",
+                "description": "Consulta especializada en cardiología",
+                "category": "Especialidades",
+                "specialty": "Cardiología",
+                "department": "Cardiología",
+                "default_duration_minutes": 45,
+                "preparation_time_minutes": 10,
+                "cleanup_time_minutes": 10,
+                "is_active": True,
+                "requires_referral": True,
+                "is_emergency_service": False,
+                "telemedicine_available": False,
+                "base_price": 80000.00,
+                "insurance_price": 40000.00,
+                "emergency_surcharge": 15000.00,
+                "age_restrictions": {"min_age": 18},
+                "gender_restrictions": None,
+                "special_requirements": "Electrocardiograma previo",
+                "instructions": "Ayuno de 12 horas, no tomar medicamentos cardíacos",
+                "contraindications": "Pacientes con marcapasos",
+                "equipment_needed": ["Electrocardiógrafo", "Estetoscopio", "Tensiómetro"],
+                "created_at": "2024-01-15T10:00:00Z",
+                "updated_at": "2024-01-15T10:00:00Z"
+            },
+            {
+                "id": "ms_3",
+                "name": "Consulta Pediátrica",
+                "code": "CONS_PED",
+                "description": "Consulta médica especializada en pediatría",
+                "category": "Especialidades",
+                "specialty": "Pediatría",
+                "department": "Pediatría",
+                "default_duration_minutes": 40,
+                "preparation_time_minutes": 5,
+                "cleanup_time_minutes": 5,
+                "is_active": True,
+                "requires_referral": False,
+                "is_emergency_service": False,
+                "telemedicine_available": True,
+                "base_price": 60000.00,
+                "insurance_price": 30000.00,
+                "emergency_surcharge": 12000.00,
+                "age_restrictions": {"max_age": 18},
+                "gender_restrictions": None,
+                "special_requirements": "Acompañante mayor de edad",
+                "instructions": "Traer carné de vacunación",
+                "contraindications": "Pacientes con fiebre alta",
+                "equipment_needed": ["Estetoscopio pediátrico", "Termómetro", "Balanza"],
+                "created_at": "2024-01-15T10:00:00Z",
+                "updated_at": "2024-01-15T10:00:00Z"
+            },
+            {
+                "id": "ms_4",
+                "name": "Emergencia Médica",
+                "code": "EMERG_MED",
+                "description": "Atención médica de emergencia 24/7",
+                "category": "Emergencias",
+                "specialty": "Medicina de Emergencias",
+                "department": "Urgencias",
+                "default_duration_minutes": 60,
+                "preparation_time_minutes": 0,
+                "cleanup_time_minutes": 5,
+                "is_active": True,
+                "requires_referral": False,
+                "is_emergency_service": True,
+                "telemedicine_available": False,
+                "base_price": 120000.00,
+                "insurance_price": 60000.00,
+                "emergency_surcharge": 0.00,
+                "age_restrictions": None,
+                "gender_restrictions": None,
+                "special_requirements": None,
+                "instructions": "Atención inmediata sin cita previa",
+                "contraindications": None,
+                "equipment_needed": ["Monitor cardíaco", "Desfibrilador", "Oxígeno"],
+                "created_at": "2024-01-15T10:00:00Z",
+                "updated_at": "2024-01-15T10:00:00Z"
+            }
+        ]
+        
+        # Filtrar por parámetros
+        filtered_services = medical_services_data
+        
+        if category:
+            filtered_services = [s for s in filtered_services if s["category"].lower() == category.lower()]
+        
+        if specialty:
+            filtered_services = [s for s in filtered_services if s["specialty"] and s["specialty"].lower() == specialty.lower()]
+        
+        if is_active:
+            filtered_services = [s for s in filtered_services if s["is_active"]]
+        
+        # Limitar resultados
+        return filtered_services[:limit]
+        
+    except Exception as e:
+        logger.error(f"Error getting medical services: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

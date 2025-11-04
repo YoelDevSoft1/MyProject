@@ -53,7 +53,6 @@ import {
   MdLocalHospital
 } from 'react-icons/md';
 import useRealtimeStats from '../../hooks/useRealtimeStats';
-import DataDebugger from '../debug/DataDebugger';
 
 /**
  * Componente de dashboard en tiempo real
@@ -467,23 +466,6 @@ export const RealtimeDashboard = memo(({
                 Actualizando estadísticas...
               </Text>
             </Box>
-          )}
-
-          {/* Debug en modo desarrollo */}
-          {process.env.NODE_ENV === 'development' && (
-            <DataDebugger 
-              data={{
-                stats,
-                alerts,
-                loading,
-                error,
-                isRealTimeEnabled,
-                completionRate,
-                urgencyRate,
-                telemedicineRate
-              }}
-              title="Dashboard Stats Debug"
-            />
           )}
         </VStack>
       </CardBody>

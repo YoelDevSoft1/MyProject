@@ -1,489 +1,119 @@
-/**
- * SMD VITAL - Medical Records Service
- * Servicio para manejo de registros médicos, prescripciones y calificaciones
- */
-
 import apiService from './apiService';
 
-class MedicalRecordsService {
-  constructor() {
-    this.baseUrl = '/api/medical-records';
-    this.prescriptionsUrl = '/api/prescriptions';
-    this.ratingsUrl = '/api/ratings';
+const normalizeRecords = (payload) => {
+  if (!payload) {
+    return [];
   }
 
-  // =============================================
-  // REGISTROS MÉDICOS
-  // =============================================
-
-  /**
-   * Crear un nuevo registro médico de consulta
-   */
-  async createMedicalRecord(appointmentId, consultationData) {
-    try {
-      const response = await apiService.makeRequest(`${this.baseUrl}`, {
-        method: 'POST',
-        body: JSON.stringify({
-          appointment_id: appointmentId,
-          consultation_data: consultationData
-        })
-      });
-
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error creating medical record:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al crear registro médico'
-      };
-    }
+  if (Array.isArray(payload.records)) {
+    return payload.records;
   }
 
-  /**
-   * Obtener historial médico de un paciente
-   */
-  async getPatientMedicalHistory(patientId, options = {}) {
-    try {
-      const params = new URLSearchParams();
-      
-      if (options.limit) params.append('limit', options.limit);
-      if (options.recordType) params.append('record_type', options.recordType);
-
-      const response = await apiService.makeRequest(
-        `${this.baseUrl}/patient/${patientId}?${params.toString()}`
-      );
-
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error getting patient medical history:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener historial médico'
-      };
-    }
+  if (Array.isArray(payload.items)) {
+    return payload.items;
   }
 
-  /**
-   * Obtener un registro médico específico
-   */
-  async getMedicalRecord(recordId) {
-    try {
-      const response = await apiService.makeRequest(`${this.baseUrl}/${recordId}`);
-
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error getting medical record:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener registro médico'
-      };
-    }
+  if (Array.isArray(payload.data)) {
+    return payload.data;
   }
 
-  // =============================================
-  // PRESCRIPCIONES
-  // =============================================
+  return Array.isArray(payload) ? payload : [];
+};
 
-  /**
-   * Crear una nueva receta médica
-   */
-  async createPrescription(medicalRecordId, medications, doctorNotes = '') {
-    try {
-      const response = await apiService.makeRequest(this.prescriptionsUrl, {
-        method: 'POST',
-        body: JSON.stringify({
-          medical_record_id: medicalRecordId,
-          medications: medications,
-          doctor_notes: doctorNotes
-        })
-      });
+const normalizeStats = (payload = {}) => ({
+  totalRecords: payload.totalRecords ?? 0,
+  activeRecords: payload.activeRecords ?? 0,
+  archivedRecords: payload.archivedRecords ?? 0,
+  pendingRecords: payload.pendingRecords ?? 0,
+  followUpScheduled: payload.followUpScheduled ?? 0,
+  lastUpdated: payload.lastUpdated ?? null
+});
 
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error creating prescription:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al crear receta médica'
-      };
-    }
+const buildPayload = (data = {}) => ({
+  ...data,
+  status: data.status || 'active'
+});
+
+export const fetchMedicalRecordsRequest = async ({ token, page = 1, limit = 10, status, doctor, search } = {}) => {
+  const params = {
+    page,
+    limit,
+    status: status || undefined,
+    doctor: doctor || undefined,
+    search: search || undefined
+  };
+
+  const response = await apiService.makeRequest('get', '/medical-records/admin', params, token);
+
+  if (!response.success) {
+    throw new Error(response.error || 'No fue posible cargar los expedientes medicos');
   }
 
-  /**
-   * Obtener recetas de un paciente
-   */
-  async getPatientPrescriptions(patientId, options = {}) {
-    try {
-      const params = new URLSearchParams();
-      
-      if (options.status) params.append('status', options.status);
-      if (options.limit) params.append('limit', options.limit);
+  const payload = response.data || {};
+  const records = normalizeRecords(payload);
 
-      const response = await apiService.makeRequest(
-        `${this.prescriptionsUrl}/patient/${patientId}?${params.toString()}`
-      );
+  return {
+    records,
+    stats: normalizeStats(payload.stats),
+    page: payload.page ?? page,
+    limit: payload.limit ?? limit,
+    total: payload.total ?? records.length,
+    totalPages: payload.totalPages ?? payload.total_pages ?? 1
+  };
+};
 
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error getting patient prescriptions:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener recetas'
-      };
-    }
+export const fetchMedicalRecordRequest = async ({ token, recordId }) => {
+  const response = await apiService.makeRequest('get', `/medical-records/admin/${recordId}`, null, token);
+
+  if (!response.success) {
+    throw new Error(response.error || 'No fue posible cargar el expediente medico');
   }
 
-  /**
-   * Obtener una receta específica
-   */
-  async getPrescription(prescriptionId) {
-    try {
-      const response = await apiService.makeRequest(`${this.prescriptionsUrl}/${prescriptionId}`);
+  return response.data;
+};
 
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error getting prescription:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener receta'
-      };
-    }
+export const createMedicalRecordRequest = async ({ token, payload }) => {
+  const response = await apiService.makeRequest('post', '/medical-records/admin', buildPayload(payload), token);
+
+  if (!response.success) {
+    throw new Error(response.error || 'No fue posible crear el expediente medico');
   }
 
-  /**
-   * Cancelar una receta médica
-   */
-  async cancelPrescription(prescriptionId, reason = '') {
-    try {
-      const response = await apiService.makeRequest(`${this.prescriptionsUrl}/${prescriptionId}/cancel`, {
-        method: 'POST',
-        body: JSON.stringify({ reason })
-      });
+  return response.data;
+};
 
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error cancelling prescription:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al cancelar receta'
-      };
-    }
+export const updateMedicalRecordRequest = async ({ token, recordId, payload }) => {
+  const response = await apiService.makeRequest('put', `/medical-records/admin/${recordId}`, buildPayload(payload), token);
+
+  if (!response.success) {
+    throw new Error(response.error || 'No fue posible actualizar el expediente medico');
   }
 
-  // =============================================
-  // CALIFICACIONES
-  // =============================================
+  return response.data;
+};
 
-  /**
-   * Enviar calificación de un doctor
-   */
-  async submitRating(doctorId, appointmentId, rating, comment = '', categories = {}) {
-    try {
-      const response = await apiService.makeRequest(this.ratingsUrl, {
-        method: 'POST',
-        body: JSON.stringify({
-          doctor_id: doctorId,
-          appointment_id: appointmentId,
-          rating: rating,
-          comment: comment,
-          categories: categories
-        })
-      });
+export const deleteMedicalRecordRequest = async ({ token, recordId }) => {
+  const response = await apiService.makeRequest('delete', `/medical-records/admin/${recordId}`, null, token);
 
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error submitting rating:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al enviar calificación'
-      };
-    }
+  if (!response.success) {
+    throw new Error(response.error || 'No fue posible eliminar el expediente medico');
   }
 
-  /**
-   * Obtener calificaciones de un doctor
-   */
-  async getDoctorRatings(doctorId, options = {}) {
-    try {
-      const params = new URLSearchParams();
-      
-      if (options.limit) params.append('limit', options.limit);
-      if (options.verifiedOnly !== undefined) params.append('verified_only', options.verifiedOnly);
+  return true;
+};
 
-      const response = await apiService.makeRequest(
-        `${this.ratingsUrl}/doctor/${doctorId}?${params.toString()}`
-      );
+export const exportMedicalRecordsRequest = async ({ token, status, doctor, search } = {}) => {
+  const params = {
+    status: status || undefined,
+    doctor: doctor || undefined,
+    search: search || undefined
+  };
 
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error getting doctor ratings:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener calificaciones'
-      };
-    }
+  const response = await apiService.makeRequest('get', '/medical-records/admin/export', params, token);
+
+  if (!response.success) {
+    throw new Error(response.error || 'No fue posible exportar los expedientes medicos');
   }
 
-  /**
-   * Obtener agregaciones de calificaciones de un doctor
-   */
-  async getDoctorRatingAggregate(doctorId) {
-    try {
-      const response = await apiService.makeRequest(`${this.ratingsUrl}/doctor/${doctorId}/aggregate`);
-
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error getting doctor rating aggregate:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener estadísticas de calificaciones'
-      };
-    }
-  }
-
-  /**
-   * Obtener doctores mejor calificados
-   */
-  async getTopRatedDoctors(options = {}) {
-    try {
-      const params = new URLSearchParams();
-      
-      if (options.specialty) params.append('specialty', options.specialty);
-      if (options.minRatings) params.append('min_ratings', options.minRatings);
-      if (options.limit) params.append('limit', options.limit);
-
-      const response = await apiService.makeRequest(
-        `${this.ratingsUrl}/top-doctors?${params.toString()}`
-      );
-
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error getting top rated doctors:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener doctores mejor calificados'
-      };
-    }
-  }
-
-  /**
-   * Obtener estadísticas generales de calificaciones
-   */
-  async getRatingStatistics() {
-    try {
-      const response = await apiService.makeRequest(`${this.ratingsUrl}/stats`);
-
-      return {
-        success: true,
-        data: response
-      };
-    } catch (error) {
-      console.error('Error getting rating statistics:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener estadísticas'
-      };
-    }
-  }
-
-  // =============================================
-  // UTILIDADES
-  // =============================================
-
-  /**
-   * Validar datos de consulta médica
-   */
-  validateConsultationData(data) {
-    const errors = {};
-
-    if (!data.chiefComplaint?.trim()) {
-      errors.chiefComplaint = 'El motivo de consulta es requerido';
-    }
-
-    if (!data.historyPresentIllness?.trim()) {
-      errors.historyPresentIllness = 'La historia de la enfermedad es requerida';
-    }
-
-    if (!data.assessment?.trim()) {
-      errors.assessment = 'La evaluación es requerida';
-    }
-
-    if (!data.plan?.trim()) {
-      errors.plan = 'El plan de tratamiento es requerido';
-    }
-
-    // Validar medicamentos si existen
-    if (data.prescriptions && data.prescriptions.length > 0) {
-      data.prescriptions.forEach((med, index) => {
-        if (med.name && (!med.dosage || !med.frequency)) {
-          errors[`prescription_${index}`] = 'Dosis y frecuencia son requeridas';
-        }
-      });
-    }
-
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    };
-  }
-
-  /**
-   * Validar datos de calificación
-   */
-  validateRatingData(data) {
-    const errors = {};
-
-    if (!data.rating || data.rating < 1 || data.rating > 5) {
-      errors.rating = 'La calificación debe estar entre 1 y 5';
-    }
-
-    if (!data.doctorId) {
-      errors.doctorId = 'ID del doctor es requerido';
-    }
-
-    if (!data.appointmentId) {
-      errors.appointmentId = 'ID de la cita es requerido';
-    }
-
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    };
-  }
-
-  /**
-   * Formatear fecha para mostrar
-   */
-  formatDate(dateString) {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
-
-  /**
-   * Formatear fecha corta
-   */
-  formatDateShort(dateString) {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-  }
-
-  /**
-   * Obtener color de estado de receta
-   */
-  getPrescriptionStatusColor(status) {
-    switch (status) {
-      case 'active':
-        return 'green';
-      case 'expired':
-        return 'red';
-      case 'cancelled':
-        return 'gray';
-      default:
-        return 'blue';
-    }
-  }
-
-  /**
-   * Obtener texto de estado de receta
-   */
-  getPrescriptionStatusText(status) {
-    switch (status) {
-      case 'active':
-        return 'Activa';
-      case 'expired':
-        return 'Expirada';
-      case 'cancelled':
-        return 'Cancelada';
-      default:
-        return 'Desconocido';
-    }
-  }
-
-  /**
-   * Obtener texto de calificación
-   */
-  getRatingText(rating) {
-    switch (rating) {
-      case 1:
-        return 'Muy malo';
-      case 2:
-        return 'Malo';
-      case 3:
-        return 'Regular';
-      case 4:
-        return 'Bueno';
-      case 5:
-        return 'Excelente';
-      default:
-        return '';
-    }
-  }
-
-  /**
-   * Calcular promedio de calificaciones
-   */
-  calculateAverageRating(ratings) {
-    if (!ratings || ratings.length === 0) return 0;
-    
-    const sum = ratings.reduce((acc, rating) => acc + rating.rating, 0);
-    return sum / ratings.length;
-  }
-
-  /**
-   * Obtener distribución de calificaciones
-   */
-  getRatingDistribution(ratings) {
-    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    
-    ratings.forEach(rating => {
-      distribution[rating.rating]++;
-    });
-    
-    return distribution;
-  }
-}
-
-// Crear instancia singleton
-const medicalRecordsService = new MedicalRecordsService();
-
-export default medicalRecordsService;
+  return typeof response.data === 'string' ? response.data : '';
+};

@@ -36,15 +36,42 @@ echo.
 REM Buscar archivo de backup
 echo 🔍 Buscando archivo de backup...
 set BACKUP_FILE=
+
+REM Buscar en el directorio actual
+for %%i in (*backup*.sql) do (
+    set BACKUP_FILE=%%i
+    echo ✅ Encontrado en directorio actual: %%i
+    goto :found_backup
+)
+
+REM Buscar en subdirectorios
 for /r . %%i in (*backup*.sql) do (
     set BACKUP_FILE=%%i
-    echo ✅ Encontrado: %%i
+    echo ✅ Encontrado en subdirectorio: %%i
+    goto :found_backup
+)
+
+REM Buscar archivos .sql que contengan "backup" en el nombre
+for /r . %%i in (*backup*.sql) do (
+    set BACKUP_FILE=%%i
+    echo ✅ Encontrado archivo de backup: %%i
+    goto :found_backup
+)
+
+REM Buscar cualquier archivo .sql
+for /r . %%i in (*.sql) do (
+    set BACKUP_FILE=%%i
+    echo ✅ Encontrado archivo SQL: %%i
+    echo ⚠️  Usando este archivo como backup
     goto :found_backup
 )
 
 echo ❌ No se encontró archivo de backup
+echo 📁 Archivos .sql encontrados en esta carpeta:
+dir /s *.sql 2>nul
+echo.
 echo 📁 Busca manualmente un archivo que termine en 'backup.sql'
-echo 📁 Asegúrate de que el archivo esté en esta carpeta
+echo 📁 O copia el archivo 'smdvital_complete_backup_20250927_000353.sql' a esta carpeta
 pause
 exit /b 1
 

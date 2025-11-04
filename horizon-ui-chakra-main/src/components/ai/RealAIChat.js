@@ -32,7 +32,7 @@ import {
 const RealAIChat = ({ onClose }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [selectedModel, setSelectedModel] = useState('phi:latest');
+  const [selectedModel, setSelectedModel] = useState('gpt-4');
   const [availableModels, setAvailableModels] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -44,44 +44,8 @@ const RealAIChat = ({ onClose }) => {
 
   const loadAvailableModels = useCallback(async () => {
     try {
-      console.log('Cargando modelos desde el servicio backend...');
-      
-      // Primero intentar con el servicio backend
-      try {
-        const response = await fetch('http://localhost:8008/ai/free/models', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          mode: 'cors',
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Datos del servicio backend:', data);
-          
-          if (data.available_models && Array.isArray(data.available_models)) {
-            const models = data.available_models.map((model) => ({
-              name: model,
-              provider: 'ollama',
-              free: true,
-              description: `Modelo ${model} - Disponible en Ollama`,
-              memory_required: '4GB',
-              best_for: 'Conversación general y análisis médico'
-            }));
-            setAvailableModels(models);
-            console.log('Modelos del servicio backend cargados:', models.length);
-            return;
-          }
-        }
-      } catch (backendError) {
-        console.warn('Error con servicio backend, intentando conexión directa:', backendError);
-      }
-      
-      // Si el servicio backend falla, intentar conexión directa a Ollama
-      console.log('Intentando conexión directa a Ollama...');
-      const response = await fetch('http://localhost:11434/api/tags', {
+      console.log('Cargando modelos de OpenAI desde ai-langgraph...');
+      const response = await fetch('http://localhost:8008/ai/models', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -89,76 +53,30 @@ const RealAIChat = ({ onClose }) => {
         },
         mode: 'cors',
       });
-      
-      console.log('Respuesta de Ollama:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      console.log('Datos de Ollama recibidos:', data);
-      
-      if (data.models && Array.isArray(data.models)) {
-        const models = data.models.map((model) => ({
-          name: model.name,
-          provider: 'ollama',
-          free: true,
-          description: `Modelo ${model.name} - ${model.size ? `Tamaño: ${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB` : 'Modelo de IA'}`,
-          memory_required: model.size ? `${Math.ceil(model.size / 1024 / 1024 / 1024)}GB` : '4GB',
-          best_for: 'Conversación general y análisis médico',
-          size: model.size,
-          modified_at: model.modified_at
+      const openaiModels = (data.models || []).filter(m => m.provider === 'openai');
+      const models = openaiModels.map(m => ({
+        name: m.name,
+        provider: 'openai',
+        free: false,
+        description: `Modelo ${m.name} - OpenAI`,
+        memory_required: 'N/A',
+        best_for: 'Asistente médico conversacional'
         }));
         setAvailableModels(models);
-        console.log('Modelos de Ollama cargados exitosamente:', models.length);
-        
-        // Actualizar el estado de IA con los modelos instalados
-        setAiStatus(prev => ({
-          ...prev,
-          status: 'healthy',
-          ollama_connected: true,
-          installed_models: data.models.map(m => m.name),
-          available_models: data.models.length
-        }));
-      } else {
-        console.warn('No se encontraron modelos en Ollama');
-        setAvailableModels([]);
+      if (models.length > 0) {
+        const preferred = models.find(m => m.name === 'gpt-4o-mini') || models.find(m => m.name === 'gpt-4') || models[0];
+        setSelectedModel(preferred.name);
       }
     } catch (error) {
       console.error('Error cargando modelos:', error);
-      
-      // Cargar solo los modelos realmente instalados y funcionando
-      setAvailableModels([
-        {
-          name: 'phi:latest',
-          provider: 'ollama',
-          free: true,
-          description: 'Microsoft Phi - Modelo compacto y eficiente',
-          memory_required: '2GB',
-          best_for: 'Respuestas rápidas, consultas simples'
-        },
-        {
-          name: 'llama2:latest',
-          provider: 'ollama',
-          free: true,
-          description: 'Meta Llama 2 - Modelo conversacional general',
-          memory_required: '4GB',
-          best_for: 'Conversación general y análisis médico'
-        }
-      ]);
-      
-      setAiStatus(prev => ({
-        ...prev,
-        status: 'unhealthy',
-        ollama_connected: false,
-        installed_models: [],
-        available_models: 0
-      }));
+      setAvailableModels([]);
+      setAiStatus(prev => ({ ...prev, status: 'unhealthy' }));
       
       toast({
         title: 'Advertencia',
-        description: 'No se pudo conectar con los servicios de IA. Usando modelo por defecto.',
+        description: 'No se pudo cargar la lista de modelos de OpenAI.',
         status: 'warning',
         duration: 5000,
         isClosable: true,
@@ -183,73 +101,18 @@ const RealAIChat = ({ onClose }) => {
 
   const checkAIStatus = async () => {
     try {
-      console.log('Verificando estado de Ollama...');
-      const response = await fetch('http://localhost:11434/api/tags');
-      const data = await response.json();
-      
-      if (response.ok && data.models) {
-        setAiStatus({
-          status: 'healthy',
-          ollama_connected: true,
-          installed_models: data.models.map(m => m.name),
-          available_models: data.models.length,
-          default_model: data.models[0]?.name || 'phi'
-        });
-        console.log('Ollama conectado correctamente:', data.models.length, 'modelos instalados');
-      } else {
-        throw new Error('Respuesta inválida de Ollama');
-      }
+      console.log('Verificando estado de ai-langgraph...');
+      const response = await fetch('http://localhost:8008/health');
+      if (!response.ok) throw new Error('Respuesta inválida de ai-langgraph');
+      setAiStatus({ status: 'healthy' });
     } catch (error) {
-      console.error('Error verificando estado de Ollama:', error);
-      setAiStatus({
-        status: 'unhealthy',
-        ollama_connected: false,
-        installed_models: [],
-        available_models: 0,
-        default_model: 'phi'
-      });
+      console.error('Error verificando estado de IA:', error);
+      setAiStatus({ status: 'unhealthy' });
     }
   };
 
   // Función para instalar modelos directamente en Ollama (opcional)
-  const installModel = async (modelName) => {
-    setIsInstalling(true);
-    try {
-      toast({
-        title: 'Instalando modelo',
-        description: `Instalando ${modelName} en Ollama... Esto puede tomar varios minutos.`,
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      });
-
-      // Nota: Para instalar modelos en Ollama, necesitarías usar la API de pull
-      // Por ahora, asumimos que los modelos ya están instalados
-      console.log('Modelo ya instalado en Ollama:', modelName);
-      
-      // Recargar los modelos disponibles
-      await loadAvailableModels();
-      
-      toast({
-        title: 'Modelo listo',
-        description: `El modelo ${modelName} está disponible para usar`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-    } catch (error) {
-      console.error('Error con modelo:', error);
-      toast({
-        title: 'Error',
-        description: `Error con el modelo ${modelName}`,
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setIsInstalling(false);
-    }
-  };
+  const installModel = async () => {};
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -289,78 +152,21 @@ const RealAIChat = ({ onClose }) => {
     try {
       console.log('Enviando mensaje:', { message, model: selectedModel });
       
-      // Primero intentar con el servicio backend
-      try {
-        const response = await fetch('http://localhost:8008/ai/free/query', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          mode: 'cors',
-          body: JSON.stringify({
-            query: message,
-            user_id: 'user',
-            model: selectedModel,
-            context: {}
-          }),
-        });
-
-        console.log('Respuesta del servicio backend:', response.status, response.statusText);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Datos de respuesta del backend:', data);
-
-          if (data.success || data.response) {
-            const aiMessage = {
-              id: (Date.now() + 1).toString(),
-              content: data.response || 'Respuesta recibida',
-              isUser: false,
-              timestamp: new Date(),
-              model: data.model_used || selectedModel,
-              confidence: 0.8
-            };
-            setMessages(prev => [...prev, aiMessage]);
-            return;
-          }
-        }
-      } catch (backendError) {
-        console.warn('Error con servicio backend, intentando conexión directa:', backendError);
-      }
-      
-      // Si el servicio backend falla, intentar conexión directa a Ollama
-      console.log('Intentando conexión directa a Ollama...');
-      
-      // Crear el prompt más simple para evitar problemas
-      const prompt = `Eres un asistente médico virtual. Responde en español de manera clara y profesional.
-
-IMPORTANTE: 
-- No reemplazas la consulta médica profesional
-- Recomienda consultar con un médico para diagnósticos
-- Proporciona información basada en evidencia médica
-
-Consulta del usuario: ${message}`;
-
-      const response = await fetch('http://localhost:11434/api/generate', {
+      const response = await fetch('http://localhost:8008/ai/query', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          query: message,
+          user_id: 'user',
+          workflow: 'diagnosis',
           model: selectedModel,
-          prompt: prompt,
-          stream: false,
-          options: {
-            temperature: 0.7,
-            top_p: 0.9,
-            top_k: 40,
-            num_predict: 200
-          }
+          context: {}
         }),
       });
 
-      console.log('Respuesta de Ollama:', response.status, response.statusText);
+      console.log('Respuesta de ai-langgraph:', response.status, response.statusText);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -369,7 +175,7 @@ Consulta del usuario: ${message}`;
       }
 
       const data = await response.json();
-      console.log('Datos de respuesta de Ollama:', data);
+      console.log('Datos de respuesta de IA:', data);
 
       if (data.response) {
         const aiMessage = {
@@ -377,13 +183,13 @@ Consulta del usuario: ${message}`;
           content: data.response,
           isUser: false,
           timestamp: new Date(),
-          model: selectedModel,
-          confidence: 0.8
+          model: data.model_used || selectedModel,
+          confidence: data.confidence ?? 0.8
         };
         setMessages(prev => [...prev, aiMessage]);
       } else {
         console.error('No se recibió respuesta válida:', data);
-        throw new Error('No se recibió respuesta de Ollama');
+        throw new Error('No se recibió respuesta de IA');
       }
     } catch (error) {
       console.error('Error enviando mensaje:', error);
@@ -404,95 +210,66 @@ Consulta del usuario: ${message}`;
 
   const sendStreamingMessage = async (message) => {
     try {
-      console.log('Enviando mensaje con streaming a Ollama:', { message, model: selectedModel });
+      console.log('Enviando mensaje streaming:', { message, model: selectedModel });
       
-      const response = await fetch('http://localhost:11434/api/generate', {
+      const response = await fetch('http://localhost:8008/ai/query/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
-        mode: 'cors',
         body: JSON.stringify({
+          query: message,
+          user_id: 'user',
+          workflow: 'diagnosis',
           model: selectedModel,
-          prompt: `Eres un asistente médico virtual especializado en el sistema SMD VITAL. 
-          Proporcionas información médica general, análisis de síntomas, y recomendaciones de salud.
-          
-          IMPORTANTE: 
-          - Siempre aclara que no reemplazas la consulta médica profesional
-          - Recomienda consultar con un médico para diagnósticos definitivos
-          - Proporciona información basada en evidencia médica
-          - Sé preciso y responsable en tus respuestas
-          
-          Responde en español de manera clara y profesional.
-          
-          Consulta del usuario: ${message}`,
-          stream: true,
-          options: {
-            temperature: 0.7,
-            top_p: 0.9,
-            top_k: 40
-          }
+          context: {}
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Error en la respuesta de Ollama');
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No se pudo obtener el stream de Ollama');
-      }
-
-      const aiMessage = {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let aiMessage = {
         id: (Date.now() + 1).toString(),
         content: '',
         isUser: false,
         timestamp: new Date(),
-        model: selectedModel
+        model: selectedModel,
+        confidence: 0.8
       };
-
+      
       setMessages(prev => [...prev, aiMessage]);
-      setIsStreaming(true);
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-          const chunk = new TextDecoder().decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.trim()) {
-              try {
-                const data = JSON.parse(line);
-                if (data.response) {
-                  setMessages(prev => 
-                    prev.map(msg => 
-                      msg.id === aiMessage.id 
-                        ? { ...msg, content: msg.content + data.response }
-                        : msg
-                    )
-                  );
-                }
-                if (data.done) {
-                  break;
-                }
-              } catch (e) {
-                // Ignorar líneas malformadas
-                console.warn('Error parsing streaming data:', e);
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.chunk) {
+                aiMessage.content += data.chunk;
+                setMessages(prev => prev.map(msg => 
+                  msg.id === aiMessage.id ? { ...aiMessage } : msg
+                ));
               }
+            } catch (e) {
+              console.warn('Error parsing SSE data:', e);
             }
           }
         }
-      } finally {
-        setIsStreaming(false);
       }
     } catch (error) {
-      console.error('Error en streaming de Ollama:', error);
-      setIsStreaming(false);
+      console.error('Error enviando mensaje streaming:', error);
       throw error;
     }
   };
@@ -544,8 +321,8 @@ Consulta del usuario: ${message}`;
         <CardBody pt={0}>
           <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
             <Stat>
-              <StatLabel>Modelos Instalados</StatLabel>
-              <StatNumber>{aiStatus?.installed_models || 0}</StatNumber>
+              <StatLabel>Modelos Disponibles</StatLabel>
+              <StatNumber>{availableModels.length}</StatNumber>
               <StatHelpText>
                 <StatArrow type="increase" />
                 Total disponible
@@ -602,16 +379,7 @@ Consulta del usuario: ${message}`;
               </HStack>
             </FormControl>
 
-            <Button
-              onClick={() => installModel(selectedModel)}
-              isLoading={isInstalling}
-              loadingText="Instalando..."
-              size="sm"
-              colorScheme="blue"
-              isDisabled={getModelStatus(selectedModel) === 'installed'}
-            >
-              Instalar Modelo
-            </Button>
+            {/* Instalación de modelos no aplica para OpenAI */}
 
             <Button
               onClick={loadAvailableModels}
@@ -625,17 +393,7 @@ Consulta del usuario: ${message}`;
       </Card>
 
       {/* Alertas */}
-      {getModelStatus(selectedModel) === 'not_installed' && (
-        <Alert status="warning" mt={4}>
-          <AlertIcon />
-          <Box>
-            <Text fontWeight="bold">Modelo no instalado</Text>
-            <Text fontSize="sm">
-              El modelo {selectedModel} no está instalado. Haz clic en "Instalar Modelo" para descargarlo.
-            </Text>
-          </Box>
-        </Alert>
-      )}
+      {null}
 
       {/* Chat Messages */}
       <Box flex="1" overflowY="auto" p={4} bg="gray.50">

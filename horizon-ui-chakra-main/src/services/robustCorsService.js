@@ -1,7 +1,10 @@
-// SMD VITAL - Robust CORS Service
+﻿// SMD VITAL - Robust CORS Service
 // Servicio robusto de CORS que se adapta automáticamente a la configuración del backend
 
 import { robustConfig, robustUtils } from '../config/robustConfig';
+import { getServiceBaseUrl } from '../config/corsConfig';
+
+const MEDICAL_RECORDS_URL = process.env.REACT_APP_MEDICAL_RECORDS_SERVICE_URL || 'http://localhost:8005';
 
 /**
  * Servicio robusto de CORS que:
@@ -266,7 +269,7 @@ class RobustCorsService {
   }
 
   /**
-   * Construir URL basada en la estrategia detectada
+   * Construir URL basada en la estrategia detectada y ruteo por microservicio
    */
   _buildUrl(endpoint) {
     if (endpoint.startsWith('http')) {
@@ -279,7 +282,11 @@ class RobustCorsService {
       return cleanEndpoint; // Usar proxy
     }
 
-    return `${this.backendConfig.backendUrl}${cleanEndpoint}`;
+    // USAR API GATEWAY (NGINX) - TODO pasa por el puerto 8000
+    let baseUrl = 'http://localhost:8000';
+    console.log(`🔍 API GATEWAY: ${cleanEndpoint} → ${baseUrl}`);
+    
+    return `${baseUrl}${cleanEndpoint}`;
   }
 
   /**
@@ -365,6 +372,7 @@ class RobustCorsService {
 
     try {
       const url = this._buildUrl(endpoint);
+      console.log(`🔍 Fallback URL Building: ${endpoint} → ${url}`);
       const headers = this._buildHeaders(token);
       const credentials = this._getCredentialsMode();
       const config = {
@@ -443,3 +451,4 @@ class RobustCorsService {
 const robustCorsService = new RobustCorsService();
 
 export default robustCorsService;
+

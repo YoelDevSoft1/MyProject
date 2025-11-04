@@ -6,7 +6,7 @@
  */
 export const environment = {
   // URLs del backend
-  apiUrl: process.env.REACT_APP_API_URL || 'http://localhost:8001',
+  apiUrl: process.env.REACT_APP_API_URL || 'http://localhost:8000',
   aiApiUrl: process.env.REACT_APP_AI_API_URL || 'http://localhost:8008',
 
   // Configuración de CORS

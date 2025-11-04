@@ -267,7 +267,7 @@ export const RobustCorsStatus = memo(() => {
                         <VStack align="start" spacing={2}>
                           {diagnostics.recommendations.map((rec, index) => (
                             <Alert 
-                              key={index}
+                              key={`recommendation-${rec.title}-${index}`}
                               status={rec.type === 'error' ? 'error' : rec.type === 'warning' ? 'warning' : 'info'}
                               size="sm"
                               borderRadius="md"

@@ -1,7 +1,7 @@
 // SMD VITAL - CORS Interceptor
 // Interceptor para manejar todos los problemas de CORS automáticamente
 
-import { corsConfig, detectBackendUrl, createCorsHeaders, handleCorsResponse } from '../config/corsConfig';
+import { corsConfig, detectBackendUrl, createCorsHeaders, handleCorsResponse, getServiceBaseUrl } from '../config/corsConfig';
 
 /**
  * Interceptor de CORS que maneja automáticamente:
@@ -108,7 +108,9 @@ class CorsInterceptor {
       return cleanEndpoint; // El proxy se encarga del resto
     }
 
-    return `${this.backendUrl}${cleanEndpoint}`;
+    // Resolver base URL según el endpoint (routing por microservicio)
+    const base = getServiceBaseUrl(cleanEndpoint) || this.backendUrl || corsConfig.backendUrls.primary;
+    return `${base}${cleanEndpoint}`;
   }
 
   /**
@@ -288,3 +290,5 @@ corsInterceptor.initialize().catch(error => {
 });
 
 export default corsInterceptor;
+
+

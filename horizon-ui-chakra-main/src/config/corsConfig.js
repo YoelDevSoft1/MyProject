@@ -4,12 +4,37 @@
 /**
  * Configuración de CORS para el frontend
  */
+// DEBUG: Verificar variables de entorno - TIMESTAMP: 2025-10-01 10:10:00
+console.log('🔍 ENV DEBUG [UPDATED]:', {
+  REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+  REACT_APP_USER_SERVICE_URL: process.env.REACT_APP_USER_SERVICE_URL,
+  REACT_APP_NOTIFICATION_SERVICE_URL: process.env.REACT_APP_NOTIFICATION_SERVICE_URL,
+  REACT_APP_APPOINTMENT_SERVICE_URL: process.env.REACT_APP_APPOINTMENT_SERVICE_URL,
+  REACT_APP_MEDICAL_RECORDS_SERVICE_URL: process.env.REACT_APP_MEDICAL_RECORDS_SERVICE_URL,
+  REACT_APP_PAYMENT_SERVICE_URL: process.env.REACT_APP_PAYMENT_SERVICE_URL
+});
+
+const resolvedMedicalRecordsUrl = process.env.REACT_APP_MEDICAL_RECORDS_SERVICE_URL || 'http://localhost:8005';
+console.log('🔍 HARDCODED URLs ACTIVE:', {
+  medicalRecords: resolvedMedicalRecordsUrl,
+  payments: 'http://localhost:8006',
+  users: 'http://localhost:8002'
+});
+
 export const corsConfig = {
-  // URLs del backend
+  // URLs del backend - USAR API GATEWAY (NGINX)
   backendUrls: {
-    primary: 'http://localhost:8001',
-    fallback: 'http://127.0.0.1:8001',
-    docker: 'http://backend:8001' // Para entornos Docker
+    // Base API Gateway (Nginx) - TODO pasa por aquí
+    primary: 'http://localhost:8000',
+    // Todos los servicios están detrás del gateway
+    users: 'http://localhost:8000',
+    notifications: 'http://localhost:8000',
+    appointments: 'http://localhost:8000',
+    medicalRecords: 'http://localhost:8000',
+    payments: 'http://localhost:8000',
+    // Alternativas genéricas
+    fallback: 'http://127.0.0.1:8000',
+    docker: 'http://nginx:80' // Para entornos Docker
   },
 
   // Headers requeridos para CORS
@@ -60,7 +85,7 @@ export const corsConfig = {
  */
 export const detectBackendUrl = async () => {
   const { backendUrls } = corsConfig;
-  const urls = [backendUrls.primary, backendUrls.fallback, backendUrls.docker];
+  const urls = [backendUrls.primary, backendUrls.medicalRecords, backendUrls.payments, backendUrls.notifications, backendUrls.users, backendUrls.appointments, backendUrls.fallback, backendUrls.docker];
   
   for (const url of urls) {
     try {
@@ -116,6 +141,28 @@ export const requiresAuth = (endpoint) => {
 };
 
 /**
+ * Resolver la URL base según el endpoint solicitado.
+ * Permite enrutar a microservicios específicos en desarrollo.
+ */
+export const getServiceBaseUrl = (endpoint) => {
+  const { backendUrls } = corsConfig;
+
+  // Normalizar endpoint y remover prefijo /api si existe para reusar las reglas
+  const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const isApiPrefixed = clean.startsWith('/api/');
+  const normalized = isApiPrefixed ? (clean.length > 4 ? clean.slice(4) : '/') : clean;
+
+  console.log(`?Y"? getServiceBaseUrl: ${endpoint} ??' ${clean} (normalized: ${normalized})`);
+  console.log('?Y"? Available URLs:', backendUrls);
+
+  const target = normalized;
+
+  // TODO PASA POR EL API GATEWAY (NGINX)
+  console.log(`🔍 API GATEWAY: ${target} → ${backendUrls.primary}`);
+  return backendUrls.primary;
+};
+
+/**
  * Manejar respuesta de CORS
  */
 export const handleCorsResponse = async (response, endpoint) => {
@@ -149,3 +196,9 @@ export const handleCorsResponse = async (response, endpoint) => {
 };
 
 export default corsConfig;
+
+
+
+
+
+

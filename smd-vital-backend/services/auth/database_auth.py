@@ -35,19 +35,33 @@ class DatabaseAuthError(Exception):
 def record_to_dict(record: asyncpg.Record) -> Dict[str, Any]:
     """Convierte asyncpg.Record a dict, manejando fechas y UUIDs."""
     if not record:
+        logger.warning("record_to_dict called with None record")
         return {}
     
-    d = dict(record)
-    for key in ['created_at', 'updated_at', 'last_login', 'date_of_birth']:
-        if d.get(key) and isinstance(d[key], datetime):
-            d[key] = d[key].isoformat()
-    
-    # Convertir UUIDs a strings
-    for key, value in d.items():
-        if hasattr(value, '__class__') and 'UUID' in str(value.__class__):
-            d[key] = str(value)
-    
-    return d
+    try:
+        d = dict(record)
+        
+        # Manejar fechas
+        for key in ['created_at', 'updated_at', 'last_login', 'date_of_birth']:
+            if d.get(key) and isinstance(d[key], datetime):
+                d[key] = d[key].isoformat()
+        
+        # Convertir UUIDs a strings
+        for key, value in d.items():
+            if value is not None and hasattr(value, '__class__') and 'UUID' in str(value.__class__):
+                d[key] = str(value)
+        
+        return d
+    except Exception as e:
+        logger.error(f"Error in record_to_dict: {e}")
+        # Fallback: crear dict básico
+        return {
+            'id': str(record.get('id', '')),
+            'email': record.get('email', ''),
+            'username': record.get('username', record.get('email', '')),
+            'role': record.get('role', 'patient'),
+            'is_active': record.get('is_active', True)
+        }
 
 class DatabaseAuth:
     _pool: Optional[asyncpg.pool.Pool] = None
@@ -136,31 +150,31 @@ class DatabaseAuth:
 
                 # Preparar datos para inserción
                 email = user_data["email"].lower()
-                username = user_data.get("username", email.split("@")[0])
+                username = user_data.get("username") or email.split("@")[0]
                 role = user_data.get("role", ROLE_PATIENT)
+                
+                logger.info(f"Creating user - email: {email}, username: {username}, role: {role}")
                 
                 if "password" in user_data:
                     # Registro normal con contraseña
                     password_hash = self.hash_password(user_data["password"])
                     
                     await conn.execute("""
-                        INSERT INTO users (id, email, username, password_hash, role, 
-                        is_active, is_verified, is_superuser, failed_login_attempts, created_at, updated_at)
+                        INSERT INTO users (id, email, username, password_hash, first_name, last_name, role, 
+                        is_active, email_verified, created_at, updated_at)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                    """, user_id, email, username, password_hash, role, 
-                    True, False, False, 0, now, now)
+                    """, user_id, email, username, password_hash, 
+                    user_data.get("first_name", ""), user_data.get("last_name", ""), role, 
+                    True, False, now, now)
                 else:
                     # Registro con Google OAuth
                     await conn.execute("""
-                        INSERT INTO users (id, email, username, role, is_active, 
-                        is_verified, is_superuser, google_id, profile_picture, email_verified, 
-                        first_name, last_name, failed_login_attempts, created_at, updated_at)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-                    """, user_id, email, username, role, True, True, False,
-                    user_data.get("google_id"), user_data.get("profile_picture"),
-                    user_data.get("email_verified", True),
-                    user_data.get("first_name", ""), user_data.get("last_name", ""),
-                    0, now, now)
+                        INSERT INTO users (id, email, username, first_name, last_name, role, is_active, 
+                        email_verified, created_at, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    """, user_id, email, username,
+                    user_data.get("first_name", ""), user_data.get("last_name", ""), role, True, True,
+                    now, now)
 
                 user = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
                 return record_to_dict(user)
@@ -212,7 +226,28 @@ class DatabaseAuth:
                     "UPDATE users SET last_login = $1 WHERE id = $2",
                     now, user['id']
                 )
-                return record_to_dict(user)
+                
+                # Convertir record a dict de forma segura
+                try:
+                    user_dict = record_to_dict(user)
+                    logger.info(f"User dict created successfully: {list(user_dict.keys())}")
+                    return user_dict
+                except Exception as dict_error:
+                    logger.error(f"Error converting record to dict: {dict_error}")
+                    # Fallback: crear dict manualmente
+                    return {
+                        'id': str(user['id']),
+                        'email': user['email'],
+                        'username': user.get('username', user['email']),
+                        'role': user.get('role', 'patient'),
+                        'first_name': user.get('first_name'),
+                        'last_name': user.get('last_name'),
+                        'is_active': user.get('is_active', True),
+                        'is_verified': user.get('is_verified', False),
+                        'created_at': user.get('created_at').isoformat() if user.get('created_at') else None,
+                        'updated_at': user.get('updated_at').isoformat() if user.get('updated_at') else None,
+                        'last_login': now.isoformat()
+                    }
                 
         except Exception as e:
             logger.error(f"Error en autenticación: {e}")

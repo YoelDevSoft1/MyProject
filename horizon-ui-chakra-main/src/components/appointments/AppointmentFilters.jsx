@@ -1,6 +1,4 @@
-// SMD VITAL - AppointmentFilters Component
-// Componente de filtros inteligentes para citas médicas
-
+// SMD VITAL - AppointmentFilters Component (Optimized)
 import React, { memo, useCallback, useState } from 'react';
 import {
   Card,
@@ -36,35 +34,49 @@ import {
   Divider
 } from '@chakra-ui/react';
 import {
-  MdFilterList,
   MdClear,
   MdSearch,
   MdSort,
-  MdSave,
-  MdSettings,
   MdRefresh,
   MdExpandMore,
   MdExpandLess
 } from 'react-icons/md';
 
-/**
- * Componente de filtros inteligentes para citas médicas
- * 
- * @param {Object} props - Props del componente
- * @param {Object} props.filters - Filtros actuales
- * @param {Array} props.activeFilters - Filtros activos con etiquetas
- * @param {Function} props.updateFilter - Función para actualizar filtro
- * @param {Function} props.clearFilter - Función para limpiar filtro específico
- * @param {Function} props.clearAllFilters - Función para limpiar todos los filtros
- * @param {Function} props.onApplyFilters - Función para aplicar filtros
- * @param {string} props.sortBy - Campo de ordenamiento actual
- * @param {string} props.sortOrder - Orden actual (asc/desc)
- * @param {Function} props.onSortChange - Función para cambiar ordenamiento
- * @param {Array} props.savedFilters - Filtros guardados
- * @param {Function} props.onSaveFilter - Función para guardar filtro
- * @param {Function} props.onLoadFilter - Función para cargar filtro guardado
- * @param {boolean} props.loading - Estado de carga
- */
+const STATUS_OPTIONS = [
+  { value: 'PENDING', label: 'Pendiente' },
+  { value: 'CONFIRMED', label: 'Confirmada' },
+  { value: 'IN_PROGRESS', label: 'En Progreso' },
+  { value: 'COMPLETED', label: 'Completada' },
+  { value: 'CANCELLED', label: 'Cancelada' },
+  { value: 'NO_SHOW', label: 'No Asistió' },
+  { value: 'RESCHEDULED', label: 'Reprogramada' }
+];
+
+const PRIORITY_OPTIONS = [
+  { value: 'LOW', label: 'Baja' },
+  { value: 'MEDIUM', label: 'Media' },
+  { value: 'HIGH', label: 'Alta' },
+  { value: 'URGENT', label: 'Urgente' }
+];
+
+const APPOINTMENT_TYPE_OPTIONS = [
+  { value: 'consultation', label: 'Consulta' },
+  { value: 'follow_up', label: 'Seguimiento' },
+  { value: 'emergency', label: 'Emergencia' },
+  { value: 'checkup', label: 'Chequeo' },
+  { value: 'surgery', label: 'Cirugía' },
+  { value: 'therapy', label: 'Terapia' }
+];
+
+const SORT_OPTIONS = [
+  { value: 'date_asc', label: 'Fecha (Ascendente)', sortBy: 'date', sortOrder: 'asc' },
+  { value: 'date_desc', label: 'Fecha (Descendente)', sortBy: 'date', sortOrder: 'desc' },
+  { value: 'status_asc', label: 'Estado (A-Z)', sortBy: 'status', sortOrder: 'asc' },
+  { value: 'priority_desc', label: 'Prioridad (Alta-Baja)', sortBy: 'priority', sortOrder: 'desc' },
+  { value: 'patient_asc', label: 'Paciente (A-Z)', sortBy: 'patient', sortOrder: 'asc' },
+  { value: 'doctor_asc', label: 'Doctor (A-Z)', sortBy: 'doctor', sortOrder: 'asc' }
+];
+
 export const AppointmentFilters = memo(({
   filters = {},
   activeFilters = [],
@@ -75,54 +87,14 @@ export const AppointmentFilters = memo(({
   sortBy = 'date',
   sortOrder = 'asc',
   onSortChange,
-  savedFilters = [],
-  onSaveFilter,
-  onLoadFilter,
   loading = false
 }) => {
   const [showFilters, setShowFilters] = useState(false);
-  const [filterName, setFilterName] = useState('');
 
-  // Colores del tema
+  // Theme colors
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const textColor = useColorModeValue('gray.700', 'gray.200');
-
-  // Opciones de filtros
-  const statusOptions = [
-    { value: 'PENDING', label: 'Pendiente' },
-    { value: 'CONFIRMED', label: 'Confirmada' },
-    { value: 'IN_PROGRESS', label: 'En Progreso' },
-    { value: 'COMPLETED', label: 'Completada' },
-    { value: 'CANCELLED', label: 'Cancelada' },
-    { value: 'NO_SHOW', label: 'No Asistió' },
-    { value: 'RESCHEDULED', label: 'Reprogramada' }
-  ];
-
-  const priorityOptions = [
-    { value: 'LOW', label: 'Baja' },
-    { value: 'MEDIUM', label: 'Media' },
-    { value: 'HIGH', label: 'Alta' },
-    { value: 'URGENT', label: 'Urgente' }
-  ];
-
-  const appointmentTypeOptions = [
-    { value: 'consultation', label: 'Consulta' },
-    { value: 'follow_up', label: 'Seguimiento' },
-    { value: 'emergency', label: 'Emergencia' },
-    { value: 'checkup', label: 'Chequeo' },
-    { value: 'surgery', label: 'Cirugía' },
-    { value: 'therapy', label: 'Terapia' }
-  ];
-
-  const sortOptions = [
-    { value: 'date_asc', label: 'Fecha (Ascendente)', sortBy: 'date', sortOrder: 'asc' },
-    { value: 'date_desc', label: 'Fecha (Descendente)', sortBy: 'date', sortOrder: 'desc' },
-    { value: 'status_asc', label: 'Estado (A-Z)', sortBy: 'status', sortOrder: 'asc' },
-    { value: 'priority_desc', label: 'Prioridad (Alta-Baja)', sortBy: 'priority', sortOrder: 'desc' },
-    { value: 'patient_asc', label: 'Paciente (A-Z)', sortBy: 'patient', sortOrder: 'asc' },
-    { value: 'doctor_asc', label: 'Doctor (A-Z)', sortBy: 'doctor', sortOrder: 'asc' }
-  ];
 
   // Handlers
   const handleToggleFilters = useCallback(() => {
@@ -133,63 +105,47 @@ export const AppointmentFilters = memo(({
     onSortChange?.(option.sortBy, option.sortOrder);
   }, [onSortChange]);
 
-  const handleSaveFilter = useCallback(() => {
-    if (filterName.trim() && onSaveFilter) {
-      onSaveFilter(filterName.trim());
-      setFilterName('');
-    }
-  }, [filterName, onSaveFilter]);
-
-  const handleKeyPress = useCallback((e, handler) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handler();
-    }
-  }, []);
+  const hasActiveFilters = activeFilters.length > 0;
 
   return (
-    <Card bg={cardBg} borderColor={borderColor}>
-      <CardHeader>
+    <Card bg={cardBg} borderColor={borderColor} shadow="sm" borderRadius="xl">
+      <CardHeader pb={hasActiveFilters ? 3 : undefined}>
         <Flex justify="space-between" align="center" wrap="wrap" gap={4}>
           <HStack spacing={4}>
-            <Heading size="md" color={textColor}>
-              Filtros Inteligentes
+            <Heading size="md" color={textColor} fontWeight="600">
+              Filtros
             </Heading>
             
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               leftIcon={<Icon as={showFilters ? MdExpandLess : MdExpandMore} />}
               onClick={handleToggleFilters}
-              aria-expanded={showFilters}
-              aria-controls="filters-panel"
             >
-              {showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+              {showFilters ? 'Ocultar' : 'Mostrar'}
             </Button>
             
-            {activeFilters.length > 0 && (
-              <Badge colorScheme="blue" variant="subtle">
-                {activeFilters.length} activo{activeFilters.length !== 1 ? 's' : ''}
-              </Badge>
-            )}
-            
-            {activeFilters.length > 0 && (
-              <Tooltip label="Limpiar todos los filtros">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  leftIcon={<Icon as={MdClear} />}
-                  onClick={clearAllFilters}
-                  colorScheme="red"
-                  aria-label="Limpiar todos los filtros"
-                >
-                  Limpiar Todo
-                </Button>
-              </Tooltip>
+            {hasActiveFilters && (
+              <>
+                <Badge colorScheme="blue" variant="subtle" fontSize="xs" px={2} py={1} borderRadius="full">
+                  {activeFilters.length} activo{activeFilters.length !== 1 ? 's' : ''}
+                </Badge>
+                
+                <Tooltip label="Limpiar todos los filtros">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    leftIcon={<Icon as={MdClear} />}
+                    onClick={clearAllFilters}
+                    colorScheme="red"
+                  >
+                    Limpiar
+                  </Button>
+                </Tooltip>
+              </>
             )}
           </HStack>
 
-          {/* Controles de ordenamiento y acciones */}
           <HStack spacing={2}>
             <Menu>
               <MenuButton 
@@ -202,11 +158,12 @@ export const AppointmentFilters = memo(({
                 Ordenar
               </MenuButton>
               <MenuList>
-                {sortOptions.map((option) => (
+                {SORT_OPTIONS.map((option) => (
                   <MenuItem
                     key={option.value}
                     onClick={() => handleSortChange(option)}
                     bg={sortBy === option.sortBy && sortOrder === option.sortOrder ? 'blue.50' : 'transparent'}
+                    fontWeight={sortBy === option.sortBy && sortOrder === option.sortOrder ? '600' : 'normal'}
                   >
                     {option.label}
                   </MenuItem>
@@ -214,14 +171,13 @@ export const AppointmentFilters = memo(({
               </MenuList>
             </Menu>
 
-            <Tooltip label="Aplicar filtros">
+            <Tooltip label="Aplicar filtros y recargar">
               <Button
                 size="sm"
                 colorScheme="blue"
                 leftIcon={<Icon as={MdRefresh} />}
                 onClick={onApplyFilters}
                 isLoading={loading}
-                aria-label="Aplicar filtros"
               >
                 Aplicar
               </Button>
@@ -230,26 +186,25 @@ export const AppointmentFilters = memo(({
         </Flex>
       </CardHeader>
 
-      {/* Filtros activos como tags */}
-      {activeFilters.length > 0 && (
-        <CardBody pt={0}>
+      {/* Active filters as tags */}
+      {hasActiveFilters && (
+        <CardBody pt={0} pb={showFilters ? 4 : undefined}>
           <VStack align="stretch" spacing={3}>
-            <Text fontSize="sm" fontWeight="medium" color={textColor}>
+            <Text fontSize="sm" fontWeight="600" color={textColor}>
               Filtros Activos:
             </Text>
             <Wrap spacing={2}>
               {activeFilters.map((filter, index) => (
-                <WrapItem key={`${filter.key}-${index}`}>
+                <WrapItem key={`active-filter-${filter.key}-${filter.value}-${index}`}>
                   <Tag
                     colorScheme="blue"
                     size="md"
                     variant="subtle"
                     borderRadius="full"
                   >
-                    <TagLabel>{filter.label}</TagLabel>
+                    <TagLabel fontSize="xs">{filter.label}</TagLabel>
                     <TagCloseButton 
                       onClick={() => clearFilter(filter.key)}
-                      aria-label={`Eliminar filtro ${filter.label}`}
                     />
                   </Tag>
                 </WrapItem>
@@ -259,13 +214,13 @@ export const AppointmentFilters = memo(({
         </CardBody>
       )}
 
-      {/* Panel de filtros colapsible */}
+      {/* Collapsible filters panel */}
       <Collapse in={showFilters} animateOpacity>
-        <CardBody pt={activeFilters.length > 0 ? 0 : undefined} id="filters-panel">
+        <CardBody pt={hasActiveFilters ? 0 : undefined}>
           <VStack align="stretch" spacing={6}>
-            <Divider />
+            {hasActiveFilters && <Divider />}
             
-            {/* Grid de filtros */}
+            {/* Filters grid */}
             <Grid 
               templateColumns={{ 
                 base: "1fr", 
@@ -274,17 +229,17 @@ export const AppointmentFilters = memo(({
               }} 
               gap={4}
             >
-              {/* Búsqueda general */}
+              {/* General search */}
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium">
+                <FormLabel fontSize="sm" fontWeight="500">
                   Búsqueda General
                 </FormLabel>
                 <InputGroup>
-                  <InputLeftElement>
+                  <InputLeftElement pointerEvents="none">
                     <Icon as={MdSearch} color="gray.400" />
                   </InputLeftElement>
                   <Input
-                    placeholder="Buscar por paciente, doctor, número..."
+                    placeholder="Buscar por paciente, doctor..."
                     value={filters.search || ''}
                     onChange={(e) => updateFilter('search', e.target.value)}
                     size="sm"
@@ -292,10 +247,10 @@ export const AppointmentFilters = memo(({
                 </InputGroup>
               </FormControl>
 
-              {/* Estado */}
+              {/* Status */}
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium">
-                  Estado de la Cita
+                <FormLabel fontSize="sm" fontWeight="500">
+                  Estado
                 </FormLabel>
                 <Select
                   placeholder="Todos los estados"
@@ -303,7 +258,7 @@ export const AppointmentFilters = memo(({
                   onChange={(e) => updateFilter('status', e.target.value)}
                   size="sm"
                 >
-                  {statusOptions.map((option) => (
+                  {STATUS_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -311,9 +266,9 @@ export const AppointmentFilters = memo(({
                 </Select>
               </FormControl>
 
-              {/* Prioridad */}
+              {/* Priority */}
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium">
+                <FormLabel fontSize="sm" fontWeight="500">
                   Prioridad
                 </FormLabel>
                 <Select
@@ -322,7 +277,7 @@ export const AppointmentFilters = memo(({
                   onChange={(e) => updateFilter('priority', e.target.value)}
                   size="sm"
                 >
-                  {priorityOptions.map((option) => (
+                  {PRIORITY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -330,9 +285,9 @@ export const AppointmentFilters = memo(({
                 </Select>
               </FormControl>
 
-              {/* Fecha desde */}
+              {/* Date from */}
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium">
+                <FormLabel fontSize="sm" fontWeight="500">
                   Fecha Desde
                 </FormLabel>
                 <Input
@@ -343,9 +298,9 @@ export const AppointmentFilters = memo(({
                 />
               </FormControl>
 
-              {/* Fecha hasta */}
+              {/* Date to */}
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium">
+                <FormLabel fontSize="sm" fontWeight="500">
                   Fecha Hasta
                 </FormLabel>
                 <Input
@@ -356,9 +311,9 @@ export const AppointmentFilters = memo(({
                 />
               </FormControl>
 
-              {/* Tipo de cita */}
+              {/* Appointment type */}
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium">
+                <FormLabel fontSize="sm" fontWeight="500">
                   Tipo de Cita
                 </FormLabel>
                 <Select
@@ -367,7 +322,7 @@ export const AppointmentFilters = memo(({
                   onChange={(e) => updateFilter('appointmentType', e.target.value)}
                   size="sm"
                 >
-                  {appointmentTypeOptions.map((option) => (
+                  {APPOINTMENT_TYPE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -377,33 +332,33 @@ export const AppointmentFilters = memo(({
 
               {/* Doctor */}
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium">
+                <FormLabel fontSize="sm" fontWeight="500">
                   Profesional
                 </FormLabel>
                 <Input
-                  placeholder="Buscar por doctor..."
+                  placeholder="Buscar doctor..."
                   value={filters.doctor || ''}
                   onChange={(e) => updateFilter('doctor', e.target.value)}
                   size="sm"
                 />
               </FormControl>
 
-              {/* Paciente */}
+              {/* Patient */}
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium">
+                <FormLabel fontSize="sm" fontWeight="500">
                   Paciente
                 </FormLabel>
                 <Input
-                  placeholder="Buscar por paciente..."
+                  placeholder="Buscar paciente..."
                   value={filters.patient || ''}
                   onChange={(e) => updateFilter('patient', e.target.value)}
                   size="sm"
                 />
               </FormControl>
 
-              {/* Modalidad */}
+              {/* Modality */}
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium">
+                <FormLabel fontSize="sm" fontWeight="500">
                   Modalidad
                 </FormLabel>
                 <Select
@@ -422,89 +377,28 @@ export const AppointmentFilters = memo(({
 
             <Divider />
 
-            {/* Acciones de filtros */}
-            <Flex 
-              justify="space-between" 
-              align="center" 
-              wrap="wrap" 
-              gap={4}
-            >
-              <HStack spacing={3}>
-                <HStack spacing={2}>
-                  <Input
-                    placeholder="Nombre del filtro..."
-                    value={filterName}
-                    onChange={(e) => setFilterName(e.target.value)}
-                    onKeyPress={(e) => handleKeyPress(e, handleSaveFilter)}
-                    size="sm"
-                    maxW="200px"
-                  />
-                  <Tooltip label="Guardar configuración actual como filtro">
-                    <Button
-                      size="sm"
-                      leftIcon={<Icon as={MdSave} />}
-                      onClick={handleSaveFilter}
-                      isDisabled={!filterName.trim()}
-                    >
-                      Guardar
-                    </Button>
-                  </Tooltip>
-                </HStack>
-
-                {savedFilters.length > 0 && (
-                  <Menu>
-                    <MenuButton 
-                      as={Button} 
-                      size="sm" 
-                      variant="outline" 
-                      leftIcon={<Icon as={MdSettings} />}
-                      rightIcon={<Icon as={MdExpandMore} />}
-                    >
-                      Filtros Guardados
-                    </MenuButton>
-                    <MenuList maxH="200px" overflowY="auto">
-                      {savedFilters.map((filter) => (
-                        <MenuItem
-                          key={filter.id}
-                          onClick={() => onLoadFilter(filter)}
-                        >
-                          <VStack align="start" spacing={0}>
-                            <Text fontSize="sm" fontWeight="medium">
-                              {filter.name}
-                            </Text>
-                            <Text fontSize="xs" color="gray.500">
-                              {new Date(filter.createdAt).toLocaleDateString()}
-                            </Text>
-                          </VStack>
-                        </MenuItem>
-                      ))}
-                    </MenuList>
-                  </Menu>
-                )}
-              </HStack>
-
-              <HStack spacing={2}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={clearAllFilters}
-                  leftIcon={<Icon as={MdClear} />}
-                  isDisabled={activeFilters.length === 0}
-                >
-                  Limpiar Todo
-                </Button>
-                
-                <Button
-                  size="sm"
-                  colorScheme="blue"
-                  onClick={onApplyFilters}
-                  leftIcon={<Icon as={MdRefresh} />}
-                  isLoading={loading}
-                  loadingText="Aplicando..."
-                >
-                  Aplicar Filtros
-                </Button>
-              </HStack>
+            {/* Filter actions */}
+            <Flex justify="flex-end" gap={2}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={clearAllFilters}
+                leftIcon={<Icon as={MdClear} />}
+                isDisabled={!hasActiveFilters}
+              >
+                Limpiar Todo
+              </Button>
+              
+              <Button
+                size="sm"
+                colorScheme="blue"
+                onClick={onApplyFilters}
+                leftIcon={<Icon as={MdRefresh} />}
+                isLoading={loading}
+                loadingText="Aplicando..."
+              >
+                Aplicar Filtros
+              </Button>
             </Flex>
           </VStack>
         </CardBody>

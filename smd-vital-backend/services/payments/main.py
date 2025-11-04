@@ -39,16 +39,14 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 app = FastAPI(title="SMD Vital Payment Service", version="1.0.0")
 
 # ===== CONFIGURACIÓN CORS =====
-# CORS deshabilitado en el servicio - Nginx se encarga de CORS
-# Esto evita headers duplicados que causan errores CORS
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["http://localhost:3001"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
+# CORS habilitado para desarrollo local
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=["*"],
+)
 
 # Logging
 logging.basicConfig(level=logging.INFO)

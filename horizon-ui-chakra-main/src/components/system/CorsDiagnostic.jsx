@@ -342,7 +342,7 @@ export const CorsDiagnostic = memo(() => {
               <Text fontWeight="bold" mb={3}>🌐 Estado de Endpoints</Text>
               <VStack spacing={2} align="stretch">
                 {diagnosticData.endpoints?.map((endpoint, index) => (
-                  <HStack key={index} justify="space-between" p={2} bg="gray.50" borderRadius="md">
+                  <HStack key={`endpoint-diagnostic-${endpoint.name}-${index}`} justify="space-between" p={2} bg="gray.50" borderRadius="md">
                     <HStack>
                       <Icon 
                         as={getStatusIcon(endpoint.status)} 
@@ -377,7 +377,7 @@ export const CorsDiagnostic = memo(() => {
                 <Text fontWeight="bold" mb={3}>💡 Recomendaciones</Text>
                 <VStack spacing={3} align="stretch">
                   {diagnosticData.recommendations.map((rec, index) => (
-                    <Alert key={index} status={rec.type} borderRadius="md">
+                    <Alert key={`diagnostic-recommendation-${rec.title}-${index}`} status={rec.type} borderRadius="md">
                       <AlertIcon />
                       <VStack align="start" spacing={2} flex="1">
                         <Text fontWeight="bold" fontSize="sm">{rec.title}</Text>

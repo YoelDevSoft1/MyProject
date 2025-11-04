@@ -251,15 +251,15 @@ async def register_user(user_data: UserCreate):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
 
 @app.post("/login", response_model=Token, tags=["Authentication"])
-async def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_user(login_data: UserLogin):
     """Iniciar sesión de usuario"""
     try:
-        logger.info(f"Login attempt for email: {form_data.username}")
+        logger.info(f"Login attempt for email: {login_data.email}")
         
         # Autenticar usuario
-        user = await db_auth.authenticate_user(form_data.username, form_data.password)
+        user = await db_auth.authenticate_user(login_data.email, login_data.password)
         if not user:
-            logger.warning(f"Failed login attempt for email: {form_data.username}")
+            logger.warning(f"Failed login attempt for email: {login_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Credenciales inválidas",
@@ -300,6 +300,7 @@ async def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
 
 @app.get("/me", response_model=UserResponse, tags=["Authentication"])
+@app.get("/api/me", response_model=UserResponse, tags=["Authentication"], include_in_schema=False)
 async def get_current_user_profile(current_user: dict = Depends(get_current_user)):
     """Obtener información del usuario actual"""
     # Para usuarios temporales de Google (desarrollo)
@@ -322,6 +323,7 @@ async def get_current_user_profile(current_user: dict = Depends(get_current_user
     return db_auth.user_to_response(current_user)
 
 @app.get("/me/detection", tags=["Authentication"])
+@app.get("/api/me/detection", tags=["Authentication"], include_in_schema=False)
 async def get_user_detection_info(current_user: dict = Depends(get_current_user)):
     """Obtener información de detección inteligente del usuario actual"""
     try:

@@ -4,16 +4,16 @@ import { IoMdHome } from "react-icons/io";
 import { MdBarChart, MdPerson, MdFileCopy, MdCalendarToday, MdAttachMoney, MdPsychology, MdNotifications, MdAdminPanelSettings } from "react-icons/md";
 import { FaUser } from "react-icons/fa";
 
-// Custom components
-import DataTables from "views/admin/dataTables";
-import Profile from "views/admin/profile";
-import Appointments from "views/medical/appointments/AppointmentsOptimized"; // CORS fixed - using optimized version
-import MedicalRecords from "views/medical/records";
-import Patients from "views/medical/patients";
-import Payments from "views/medical/payments";
-import AIMedical from "views/medical/ai";
-import Notifications from "views/medical/notifications";
-import AdminPanel from "views/medical/admin";
+// Custom components - Advanced Modules
+import DataTables from "views/admin/dataTables/AdvancedDataTables";
+import Profile from "views/admin/profile/AdvancedProfile";
+import Appointments from "views/medical/appointments/AdvancedAppointments";
+import MedicalRecords from "views/medical/records/AdvancedMedicalRecords";
+import Patients from "views/medical/patients/AdvancedPatients";
+import Payments from "views/medical/payments/AdvancedPayments";
+import AIMedical from "views/medical/ai/AdvancedAIMedical";
+import Notifications from "views/medical/notifications/AdvancedNotifications";
+import AdminPanel from "views/medical/admin/AdvancedAdminPanel";
 
 // Auth components
 import SignIn from "views/auth/signIn";

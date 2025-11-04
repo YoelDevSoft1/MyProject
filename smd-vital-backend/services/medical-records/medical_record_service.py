@@ -1,6 +1,6 @@
 """
 SMD VITAL - Medical Record Service
-Servicio para manejo de registros médicos electrónicos (EHR)
+Servicio para manejo de registros mÃ©dicos electrÃ³nicos (EHR)
 """
 
 import uuid
@@ -57,189 +57,169 @@ class MedicalRecordService:
         self.cache_ttl = 3600  # 1 hora
     
     async def create_medical_record(
-        self, 
+        self,
         patient_id: str,
         doctor_id: str,
-        appointment_id: str,
+        appointment_id: Optional[str],
         record_type: RecordType,
         clinical_data: Dict[str, Any],
         created_by: str
     ) -> MedicalRecord:
-        """
-        Crear un nuevo registro médico inmutable
-        """
+        """Crear un nuevo registro médico en el esquema actual."""
         try:
             record_id = str(uuid.uuid4())
+            record_number = f"MR-{datetime.utcnow().strftime('%Y%m%d')}-{record_id[:8].upper()}"
             now = datetime.utcnow()
-            
-            # Validar datos clínicos según el tipo de registro
+
             validated_data = self._validate_clinical_data(record_type, clinical_data)
-            
-            # Crear registro en la base de datos
+            validated_data.setdefault("version", 1)
+
+            params = {
+                "id": record_id,
+                "record_number": record_number,
+                "patient_id": patient_id,
+                "professional_id": doctor_id,
+                "appointment_id": appointment_id,
+                "record_type": record_type.value,
+                "status": RecordStatus.ACTIVE.value,
+                "record_date": now,
+                "service_date": now.date(),
+                "clinical_data": json.dumps(validated_data),
+                "is_sensitive": False,
+                "access_level": "standard",
+                "created_by": created_by,
+                "last_modified_by": created_by,
+                "created_at": now,
+                "updated_at": now
+            }
+
             query = """
                 INSERT INTO medical_records (
-                    id, patient_id, doctor_id, appointment_id, record_type,
-                    version, clinical_data, created_at, updated_at,
-                    created_by, last_modified_by, status
+                    id, record_number, patient_id, professional_id, appointment_id,
+                    record_type, status, record_date, service_date, clinical_data,
+                    is_sensitive, access_level, created_by, last_modified_by,
+                    created_at, updated_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    :id, :record_number, :patient_id, :professional_id, :appointment_id,
+                    :record_type, :status, :record_date, :service_date, :clinical_data,
+                    :is_sensitive, :access_level, :created_by, :last_modified_by,
+                    :created_at, :updated_at
                 ) RETURNING *
             """
-            
-            values = (
-                record_id, patient_id, doctor_id, appointment_id,
-                record_type.value, 1, json.dumps(validated_data),
-                now, now, created_by, created_by, RecordStatus.ACTIVE.value
-            )
-            
-            result = await self.db.fetch_one(query, values)
-            
-            if result:
-                # Invalidar caché del paciente
-                await self._invalidate_patient_cache(patient_id)
-                
-                # Crear objeto MedicalRecord
-                record = MedicalRecord(
-                    id=result['id'],
-                    patient_id=result['patient_id'],
-                    doctor_id=result['doctor_id'],
-                    appointment_id=result['appointment_id'],
-                    record_type=result['record_type'],
-                    version=result['version'],
-                    clinical_data=json.loads(result['clinical_data']),
-                    created_at=result['created_at'],
-                    updated_at=result['updated_at'],
-                    created_by=result['created_by'],
-                    last_modified_by=result['last_modified_by'],
-                    status=result['status']
-                )
-                
-                logger.info(f"Medical record created: {record_id} for patient {patient_id}")
-                return record
-            else:
+
+            result = await self.db.fetch_one(query, params)
+            if not result:
                 raise Exception("Failed to create medical record")
-                
+
+            await self._invalidate_patient_cache(patient_id)
+            return self._build_record_from_row(result)
+
         except Exception as e:
             logger.error(f"Error creating medical record: {e}")
             raise
-    
+
     async def get_patient_medical_history(
-        self, 
-        patient_id: str, 
+        self,
+        patient_id: str,
         limit: int = 50,
         record_type: Optional[RecordType] = None
     ) -> List[MedicalRecord]:
-        """
-        Obtener historial médico de un paciente
-        """
+        """Obtener historial médico de acuerdo al esquema actual."""
         try:
-            # Intentar obtener desde caché
             cache_key = f"medical_history:{patient_id}:{record_type.value if record_type else 'all'}"
             if self.redis:
                 cached_data = await self.redis.get(cache_key)
                 if cached_data:
-                    return json.loads(cached_data)
-            
-            # Construir query
-            base_query = """
-                SELECT * FROM medical_records 
-                WHERE patient_id = %s AND status = 'active'
+                    cached = json.loads(cached_data)
+                    return [self.deserialize_record(item) for item in cached]
+
+            query = """
+                SELECT id, record_number, patient_id, professional_id, appointment_id,
+                       record_type, status, record_date, clinical_data,
+                       created_at, updated_at, created_by, last_modified_by
+                FROM medical_records
+                WHERE patient_id = :patient_id AND status = :status
             """
-            params = [patient_id]
-            
+            params = {
+                "patient_id": patient_id,
+                "status": RecordStatus.ACTIVE.value,
+                "limit": limit
+            }
             if record_type:
-                base_query += " AND record_type = %s"
-                params.append(record_type.value)
-            
-            base_query += " ORDER BY created_at DESC LIMIT %s"
-            params.append(limit)
-            
-            results = await self.db.fetch_all(base_query, params)
-            
-            records = []
-            for result in results:
-                record = MedicalRecord(
-                    id=result['id'],
-                    patient_id=result['patient_id'],
-                    doctor_id=result['doctor_id'],
-                    appointment_id=result['appointment_id'],
-                    record_type=result['record_type'],
-                    version=result['version'],
-                    clinical_data=json.loads(result['clinical_data']),
-                    created_at=result['created_at'],
-                    updated_at=result['updated_at'],
-                    created_by=result['created_by'],
-                    last_modified_by=result['last_modified_by'],
-                    status=result['status']
-                )
-                records.append(record)
-            
-            # Cachear resultado
+                query += " AND record_type = :record_type"
+                params["record_type"] = record_type.value
+            query += " ORDER BY record_date DESC LIMIT :limit"
+
+            rows = await self.db.fetch_all(query, params)
+            records = [self._build_record_from_row(row) for row in rows]
+
             if self.redis:
                 await self.redis.setex(
-                    cache_key, 
-                    self.cache_ttl, 
+                    cache_key,
+                    self.cache_ttl,
                     json.dumps([self._serialize_record(r) for r in records])
                 )
-            
+
             return records
-            
         except Exception as e:
-            logger.error(f"Error getting medical history: {e}")
+            logger.error(f"Error getting patient medical history: {e}")
             raise
-    
+
     async def get_medical_record(self, record_id: str) -> Optional[MedicalRecord]:
-        """
-        Obtener un registro médico específico
-        """
-        try:
-            query = "SELECT * FROM medical_records WHERE id = %s AND status = 'active'"
-            result = await self.db.fetch_one(query, [record_id])
-            
-            if result:
-                return MedicalRecord(
-                    id=result['id'],
-                    patient_id=result['patient_id'],
-                    doctor_id=result['doctor_id'],
-                    appointment_id=result['appointment_id'],
-                    record_type=result['record_type'],
-                    version=result['version'],
-                    clinical_data=json.loads(result['clinical_data']),
-                    created_at=result['created_at'],
-                    updated_at=result['updated_at'],
-                    created_by=result['created_by'],
-                    last_modified_by=result['last_modified_by'],
-                    status=result['status']
-                )
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error getting medical record: {e}")
-            raise
-    
-    async def get_patient_current_state(self, patient_id: str) -> Dict[str, Any]:
-        """
-        Obtener estado médico actual del paciente (desde vista materializada)
-        """
         try:
             query = """
-                SELECT current_medical_state, last_consultation_date 
-                FROM patient_current_state 
-                WHERE patient_id = %s
+                SELECT id, record_number, patient_id, professional_id, appointment_id,
+                       record_type, status, record_date, clinical_data,
+                       created_at, updated_at, created_by, last_modified_by
+                FROM medical_records
+                WHERE id = :record_id AND status != :status
             """
-            result = await self.db.fetch_one(query, [patient_id])
-            
-            if result:
-                return {
-                    'current_state': result['current_medical_state'],
-                    'last_consultation': result['last_consultation_date']
-                }
-            return {'current_state': [], 'last_consultation': None}
-            
+            row = await self.db.fetch_one(query, {
+                "record_id": record_id,
+                "status": RecordStatus.VOIDED.value
+            })
+            return self._build_record_from_row(row) if row else None
+        except Exception as e:
+            logger.error(f"Error getting medical record {record_id}: {e}")
+            raise
+
+    async def get_patient_current_state(self, patient_id: str) -> Dict[str, Any]:
+        try:
+            query = """
+                SELECT id AS record_id,
+                       record_type,
+                       clinical_data,
+                       record_date,
+                       ROW_NUMBER() OVER (PARTITION BY record_type ORDER BY record_date DESC) AS rn
+                FROM medical_records
+                WHERE patient_id = :patient_id AND status = :status
+            """
+            rows = await self.db.fetch_all(query, {
+                "patient_id": patient_id,
+                "status": RecordStatus.ACTIVE.value
+            })
+
+            latest_by_type = [row for row in rows if row["rn"] == 1]
+            current_state = []
+            for row in latest_by_type:
+                current_state.append({
+                    "record_id": row["record_id"],
+                    "record_type": row["record_type"],
+                    "record_date": row["record_date"].isoformat() if row["record_date"] else None,
+                    "clinical_data": json.loads(row["clinical_data"]) if row["clinical_data"] else {}
+                })
+            last_consultation = next(
+                (row["record_date"].isoformat() for row in latest_by_type if row["record_type"] == RecordType.CONSULTATION.value and row["record_date"]),
+                None
+            )
+            return {
+                "current_state": current_state,
+                "last_consultation": last_consultation
+            }
         except Exception as e:
             logger.error(f"Error getting patient current state: {e}")
             raise
-    
+
     async def amend_medical_record(
         self, 
         record_id: str, 
@@ -248,7 +228,7 @@ class MedicalRecordService:
         reason: str
     ) -> MedicalRecord:
         """
-        Crear una enmienda a un registro médico (nueva versión)
+        Crear una enmienda a un registro mÃ©dico (nueva versiÃ³n)
         """
         try:
             # Obtener registro original
@@ -256,7 +236,7 @@ class MedicalRecordService:
             if not original:
                 raise Exception("Medical record not found")
             
-            # Crear nueva versión
+            # Crear nueva versiÃ³n
             new_version = original.version + 1
             amended_clinical_data = {
                 **original.clinical_data,
@@ -269,7 +249,7 @@ class MedicalRecordService:
                 }
             }
             
-            # Crear nuevo registro con versión incrementada
+            # Crear nuevo registro con versiÃ³n incrementada
             new_record = await self.create_medical_record(
                 patient_id=original.patient_id,
                 doctor_id=original.doctor_id,
@@ -294,7 +274,7 @@ class MedicalRecordService:
     
     def _validate_clinical_data(self, record_type: RecordType, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Validar datos clínicos según el tipo de registro
+        Validar datos clÃ­nicos segÃºn el tipo de registro
         """
         if record_type == RecordType.CONSULTATION:
             required_fields = ['chief_complaint', 'history_present_illness', 'assessment', 'plan']
@@ -314,7 +294,7 @@ class MedicalRecordService:
     
     async def _invalidate_patient_cache(self, patient_id: str):
         """
-        Invalidar caché del paciente
+        Invalidar cachÃ© del paciente
         """
         if self.redis:
             pattern = f"medical_history:{patient_id}:*"
@@ -324,7 +304,7 @@ class MedicalRecordService:
     
     def _serialize_record(self, record: MedicalRecord) -> Dict[str, Any]:
         """
-        Serializar registro para caché
+        Serializar registro para cachÃ©
         """
         return {
             'id': record.id,
@@ -343,7 +323,7 @@ class MedicalRecordService:
     
     def deserialize_record(self, data: Dict[str, Any]) -> MedicalRecord:
         """
-        Deserializar registro desde caché
+        Deserializar registro desde cachÃ©
         """
         return MedicalRecord(
             id=data['id'],
@@ -358,4 +338,25 @@ class MedicalRecordService:
             created_by=data['created_by'],
             last_modified_by=data['last_modified_by'],
             status=data['status']
+        )
+
+    def _build_record_from_row(self, row: Dict[str, Any]) -> MedicalRecord:
+        if not row:
+            return None
+        clinical = row.get('clinical_data')
+        if isinstance(clinical, str):
+            clinical = json.loads(clinical)
+        return MedicalRecord(
+            id=row['id'],
+            patient_id=row['patient_id'],
+            doctor_id=row.get('professional_id') or row.get('doctor_id'),
+            appointment_id=row.get('appointment_id'),
+            record_type=row.get('record_type'),
+            version=(clinical or {}).get('version', 1),
+            clinical_data=clinical or {},
+            created_at=row.get('created_at'),
+            updated_at=row.get('updated_at') or row.get('created_at'),
+            created_by=row.get('created_by'),
+            last_modified_by=row.get('last_modified_by', row.get('created_by')),
+            status=row.get('status', RecordStatus.ACTIVE.value)
         )

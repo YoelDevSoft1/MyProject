@@ -183,7 +183,7 @@ export const CorsSuccessStatus = memo(() => {
             </Text>
             <List spacing={2} fontSize="sm">
               {availableEndpoints.map((endpoint, index) => (
-                <ListItem key={index}>
+                <ListItem key={`endpoint-${endpoint.name}-${index}`}>
                   <HStack align="start" spacing={3}>
                     <ListIcon as={MdCheckCircle} color="green.500" mt={0.5} />
                     <VStack align="start" spacing={0} flex="1">

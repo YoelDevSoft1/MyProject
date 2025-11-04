@@ -1,31 +1,39 @@
-// SMD VITAL - useAppointments Hook
-// Hook personalizado para gestión completa de citas médicas
+// SMD VITAL - useAppointments Hook (Optimized)
+// Custom hook for complete medical appointments management
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from '@chakra-ui/react';
 import { useAuth } from '../contexts/AuthContext';
 import robustApiService from '../services/robustApiService';
 
-/**
- * Hook personalizado para gestión de citas médicas
- * Maneja filtros, paginación, estados de carga y operaciones CRUD
- * 
- * @param {Object} initialFilters - Filtros iniciales
- * @param {Object} options - Opciones de configuración
- * @returns {Object} Estado y funciones para gestión de citas
- */
+const FILTER_LABELS = {
+  status: (v) => `Estado: ${v}`,
+  doctor: (v) => `Doctor: ${v}`,
+  patient: (v) => `Paciente: ${v}`,
+  priority: (v) => `Prioridad: ${v}`,
+  appointmentType: (v) => `Tipo: ${v}`,
+  isTelemedicine: (v) => v ? 'Telemedicina' : 'Presencial',
+  dateFrom: (v) => `Desde: ${v}`,
+  dateTo: (v) => `Hasta: ${v}`,
+  search: (v) => `Búsqueda: ${v}`
+};
+
 export const useAppointments = (initialFilters = {}, options = {}) => {
   const { token, isAuthenticated } = useAuth();
   const toast = useToast();
   
   const {
     autoRefresh = false,
-    refreshInterval = 30000,
+    refreshInterval = 60000,
     enableRealtime = true,
     pageSize = 10
   } = options;
 
-  // Estados principales
+  // Refs to prevent unnecessary effects
+  const isInitialMount = useRef(true);
+  const lastFiltersRef = useRef(initialFilters);
+
+  // Main state
   const [appointmentsData, setAppointmentsData] = useState({
     appointments: [],
     loading: true,
@@ -57,34 +65,18 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
   const [selectedAppointments, setSelectedAppointments] = useState([]);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  // Filtros activos derivados
+  // Active filters derived
   const activeFilters = useMemo(() => {
     return Object.entries(filters)
-      .filter(([key, value]) => value && value !== '' && value !== null)
+      .filter(([, value]) => value && value !== '' && value !== null)
       .map(([key, value]) => ({
         key,
         value,
-        label: getFilterLabel(key, value)
+        label: FILTER_LABELS[key] ? FILTER_LABELS[key](value) : `${key}: ${value}`
       }));
   }, [filters]);
 
-  // Función para obtener etiquetas de filtros
-  const getFilterLabel = useCallback((key, value) => {
-    const labels = {
-      status: `Estado: ${value}`,
-      doctor: `Doctor: ${value}`,
-      patient: `Paciente: ${value}`,
-      priority: `Prioridad: ${value}`,
-      appointmentType: `Tipo: ${value}`,
-      isTelemedicine: value ? 'Telemedicina' : 'Presencial',
-      dateFrom: `Desde: ${value}`,
-      dateTo: `Hasta: ${value}`,
-      search: `Búsqueda: ${value}`
-    };
-    return labels[key] || `${key}: ${value}`;
-  }, []);
-
-  // Cargar citas con filtros aplicados
+  // Load appointments with filters
   const loadAppointments = useCallback(async (page = 1, size = pageSize, showLoading = true) => {
     if (!isAuthenticated || !token) {
       setAppointmentsData(prev => ({ ...prev, loading: false, error: "No autenticado" }));
@@ -107,17 +99,16 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
       const response = await robustApiService.getAppointments(token, queryParams);
       
       if (response.success) {
-        // Asegurar que siempre obtenemos un array válido
+        // Extract appointments array from various possible structures
         let appointmentsArray = [];
-        if (Array.isArray(response.data?.appointments)) {
-          appointmentsArray = response.data.appointments;
-        } else if (Array.isArray(response.data)) {
-          appointmentsArray = response.data;
-        } else if (response.data?.data && Array.isArray(response.data.data)) {
-          appointmentsArray = response.data.data;
-        } else {
-          console.warn('Estructura de datos inesperada:', response.data);
-          appointmentsArray = [];
+        const data = response.data;
+        
+        if (Array.isArray(data?.appointments)) {
+          appointmentsArray = data.appointments;
+        } else if (Array.isArray(data)) {
+          appointmentsArray = data;
+        } else if (Array.isArray(data?.data)) {
+          appointmentsArray = data.data;
         }
 
         setAppointmentsData({
@@ -125,26 +116,26 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
           loading: false,
           error: null,
           pagination: {
-            page: response.data?.page || page,
-            size: response.data?.size || size,
-            total: response.data?.total || appointmentsArray.length,
-            has_next: response.data?.has_next || false,
-            has_prev: response.data?.has_prev || false,
+            page: data?.page || page,
+            size: data?.size || size,
+            total: data?.total || appointmentsArray.length,
+            has_next: data?.has_next || false,
+            has_prev: data?.has_prev || false,
           },
         });
 
         setLastRefresh(new Date());
         return { success: true, data: appointmentsArray };
-      } else {
-        const error = response.error || 'Error desconocido';
-        setAppointmentsData(prev => ({ 
-          ...prev, 
-          appointments: [],
-          loading: false, 
-          error 
-        }));
-        return { success: false, error };
       }
+
+      const error = response.error || 'Error desconocido';
+      setAppointmentsData(prev => ({ 
+        ...prev, 
+        appointments: [],
+        loading: false, 
+        error 
+      }));
+      return { success: false, error };
     } catch (error) {
       const errorMessage = error.message || 'Error al cargar citas';
       setAppointmentsData(prev => ({ 
@@ -157,17 +148,15 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
     }
   }, [isAuthenticated, token, filters, sortBy, sortOrder, pageSize]);
 
-  // Actualizar filtro específico
+  // Filter management
   const updateFilter = useCallback((key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  // Limpiar filtro específico
   const clearFilter = useCallback((key) => {
     setFilters(prev => ({ ...prev, [key]: key === 'isTelemedicine' ? null : '' }));
   }, []);
 
-  // Limpiar todos los filtros
   const clearAllFilters = useCallback(() => {
     setFilters({
       search: '',
@@ -182,23 +171,23 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
     });
   }, []);
 
-  // Cambiar página
+  // Pagination
   const changePage = useCallback((newPage) => {
     loadAppointments(newPage, appointmentsData.pagination.size);
   }, [loadAppointments, appointmentsData.pagination.size]);
 
-  // Cambiar ordenamiento
+  // Sorting
   const changeSort = useCallback((newSortBy, newSortOrder = 'asc') => {
     setSortBy(newSortBy);
     setSortOrder(newSortOrder);
   }, []);
 
-  // Refrescar datos
-  const refresh = useCallback(async (showToast = true) => {
+  // Refresh
+  const refresh = useCallback(async (showToast = false) => {
     const result = await loadAppointments(
       appointmentsData.pagination.page, 
       appointmentsData.pagination.size,
-      false // No mostrar loading en refresh
+      false
     );
     
     if (showToast && result.success) {
@@ -213,15 +202,14 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
     return result;
   }, [loadAppointments, appointmentsData.pagination, toast]);
 
-  // Operaciones CRUD
+  // CRUD operations
   const createAppointment = useCallback(async (appointmentData) => {
     try {
       const response = await robustApiService.createAppointment(appointmentData, token);
       if (response.success) {
         await refresh(false);
         toast({
-          title: "Cita creada",
-          description: "La cita se ha creado exitosamente",
+          title: "Cita creada exitosamente",
           status: "success",
           duration: 3000,
           isClosable: true,
@@ -230,7 +218,7 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
       return response;
     } catch (error) {
       toast({
-        title: "Error",
+        title: "Error al crear cita",
         description: error.message,
         status: "error",
         duration: 3000,
@@ -246,8 +234,7 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
       if (response.success) {
         await refresh(false);
         toast({
-          title: "Cita actualizada",
-          description: "La cita se ha actualizado exitosamente",
+          title: "Cita actualizada exitosamente",
           status: "success",
           duration: 3000,
           isClosable: true,
@@ -256,7 +243,7 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
       return response;
     } catch (error) {
       toast({
-        title: "Error",
+        title: "Error al actualizar cita",
         description: error.message,
         status: "error",
         duration: 3000,
@@ -272,8 +259,7 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
       if (response.success) {
         await refresh(false);
         toast({
-          title: "Cita eliminada",
-          description: "La cita se ha eliminado exitosamente",
+          title: "Cita eliminada exitosamente",
           status: "success",
           duration: 3000,
           isClosable: true,
@@ -282,7 +268,7 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
       return response;
     } catch (error) {
       toast({
-        title: "Error",
+        title: "Error al eliminar cita",
         description: error.message,
         status: "error",
         duration: 3000,
@@ -292,7 +278,7 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
     }
   }, [token, refresh, toast]);
 
-  // Operaciones masivas
+  // Bulk operations
   const bulkUpdateAppointments = useCallback(async (appointmentIds, updateData) => {
     try {
       const results = await Promise.all(
@@ -300,7 +286,6 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
       );
       
       const successCount = results.filter(r => r.success).length;
-      
       await refresh(false);
       
       toast({
@@ -314,8 +299,8 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
       return { success: true, successCount, total: appointmentIds.length };
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Error en operación masiva",
+        title: "Error en operación masiva",
+        description: error.message,
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -324,55 +309,68 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
     }
   }, [token, refresh, toast]);
 
-  // Gestión de selección
+  // Selection management
   const selectAppointment = useCallback((appointmentId, isSelected) => {
-    if (isSelected) {
-      setSelectedAppointments(prev => [...prev, appointmentId]);
-    } else {
-      setSelectedAppointments(prev => prev.filter(id => id !== appointmentId));
-    }
+    setSelectedAppointments(prev => 
+      isSelected 
+        ? [...prev, appointmentId]
+        : prev.filter(id => id !== appointmentId)
+    );
   }, []);
 
   const selectAllAppointments = useCallback(() => {
     const allIds = appointmentsData.appointments.map(apt => apt.id);
-    if (selectedAppointments.length === allIds.length) {
-      setSelectedAppointments([]);
-    } else {
-      setSelectedAppointments(allIds);
-    }
-  }, [appointmentsData.appointments, selectedAppointments]);
+    setSelectedAppointments(prev => 
+      prev.length === allIds.length ? [] : allIds
+    );
+  }, [appointmentsData.appointments]);
 
   const clearSelection = useCallback(() => {
     setSelectedAppointments([]);
   }, []);
 
-  // Efecto para carga inicial
+  // Initial load effect
   useEffect(() => {
-    if (isAuthenticated && token) {
+    if (isAuthenticated && token && isInitialMount.current) {
       loadAppointments();
+      isInitialMount.current = false;
     }
-  }, [isAuthenticated, token]); // Solo depende de autenticación
+  }, [isAuthenticated, token]);
 
-  // Efecto para cambios de filtros
+  // Filters change effect (optimized)
   useEffect(() => {
+    if (isInitialMount.current) return;
+
+    const filtersChanged = JSON.stringify(lastFiltersRef.current) !== JSON.stringify(filters);
+    
+    if (filtersChanged && isAuthenticated && token) {
+      lastFiltersRef.current = filters;
+      loadAppointments(1); // Reset to page 1 on filter change
+    }
+  }, [filters, isAuthenticated, token]);
+
+  // Sort change effect
+  useEffect(() => {
+    if (isInitialMount.current) return;
+    
     if (isAuthenticated && token) {
-      loadAppointments();
+      loadAppointments(1);
     }
-  }, [filters, sortBy, sortOrder]); // Solo cuando cambian filtros
+  }, [sortBy, sortOrder]);
 
-  // Auto-refresh reactivado - CORS funcionando
+  // Auto-refresh effect
   useEffect(() => {
-    if (!autoRefresh || !enableRealtime) return;
+    if (!autoRefresh || !enableRealtime || !isAuthenticated) return;
     
     const interval = setInterval(() => {
       refresh(false);
-    }, Math.max(refreshInterval, 30000)); // Mínimo 30 segundos
+    }, Math.max(refreshInterval, 30000));
     
     return () => clearInterval(interval);
-  }, [autoRefresh, enableRealtime, refreshInterval]); // Reactivado con CORS
+  }, [autoRefresh, enableRealtime, refreshInterval, refresh, isAuthenticated]);
 
   return {
-    // Estados
+    // State
     ...appointmentsData,
     filters,
     activeFilters,
@@ -381,32 +379,31 @@ export const useAppointments = (initialFilters = {}, options = {}) => {
     selectedAppointments,
     lastRefresh,
     
-    // Funciones de filtrado
+    // Filter functions
     updateFilter,
     clearFilter,
     clearAllFilters,
-    getFilterLabel,
     
-    // Funciones de paginación y ordenamiento
+    // Pagination & sorting
     changePage,
     changeSort,
     
-    // Funciones de datos
+    // Data functions
     loadAppointments,
     refresh,
     
-    // Operaciones CRUD
+    // CRUD operations
     createAppointment,
     updateAppointment,
     deleteAppointment,
     bulkUpdateAppointments,
     
-    // Funciones de selección
+    // Selection functions
     selectAppointment,
     selectAllAppointments,
     clearSelection,
     
-    // Utilidades
+    // Utilities
     isSelected: (appointmentId) => selectedAppointments.includes(appointmentId),
     hasSelection: selectedAppointments.length > 0,
     selectionCount: selectedAppointments.length,

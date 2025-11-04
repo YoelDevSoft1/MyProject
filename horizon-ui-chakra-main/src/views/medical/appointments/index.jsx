@@ -195,7 +195,7 @@ const CalendarView = ({ events, view, selectedDate, onDateChange, onEventClick, 
       <Box>
         <Grid templateColumns="repeat(7, 1fr)" gap={1} mb={4}>
           {weekDays.map(day => (
-            <Box key={day} p={2} textAlign="center" fontWeight="bold" bg="gray.100">
+            <Box key={`weekday-${day}`} p={2} textAlign="center" fontWeight="bold" bg="gray.100">
               {day}
             </Box>
           ))}
@@ -205,7 +205,7 @@ const CalendarView = ({ events, view, selectedDate, onDateChange, onEventClick, 
             const dayEvents = getEventsForDate(day);
             return (
               <Box
-                key={index}
+                key={day ? `day-${day.toDateString()}` : `empty-${index}`}
                 minH="120px"
                 p={2}
                 border="1px solid"
@@ -227,7 +227,7 @@ const CalendarView = ({ events, view, selectedDate, onDateChange, onEventClick, 
                     </Text>
                     {dayEvents.map(event => (
                       <Box
-                        key={event.id}
+                        key={`event-${event.id}-${day?.toDateString()}`}
                         p={1}
                         mb={1}
                         bg={event.color}
@@ -268,7 +268,7 @@ const CalendarView = ({ events, view, selectedDate, onDateChange, onEventClick, 
       <Box>
         <Grid templateColumns="repeat(7, 1fr)" gap={1} mb={4}>
           {weekDays.map(day => (
-            <Box key={day.toDateString()} p={2} textAlign="center" fontWeight="bold" bg="gray.100">
+            <Box key={`weekday-detail-${day.toDateString()}`} p={2} textAlign="center" fontWeight="bold" bg="gray.100">
               {day.toLocaleDateString('es-CO', { weekday: 'short' })}
             </Box>
           ))}
@@ -278,7 +278,7 @@ const CalendarView = ({ events, view, selectedDate, onDateChange, onEventClick, 
             const dayEvents = getEventsForDate(day);
             return (
               <Box
-                key={day.toDateString()}
+                key={`day-detail-${day.toDateString()}`}
                 minH="200px"
                 p={2}
                 border="1px solid"
@@ -296,7 +296,7 @@ const CalendarView = ({ events, view, selectedDate, onDateChange, onEventClick, 
                 </Text>
                 {dayEvents.map(event => (
                   <Box
-                    key={event.id}
+                    key={`event-detail-${event.id}-${day.toDateString()}`}
                     p={1}
                     mb={1}
                     bg={event.color}
@@ -336,7 +336,7 @@ const CalendarView = ({ events, view, selectedDate, onDateChange, onEventClick, 
         </Text>
         <Grid templateColumns="60px 1fr" gap={1}>
           {hours.map(hour => (
-            <React.Fragment key={hour}>
+            <React.Fragment key={`hour-${hour}`}>
               <Box p={2} textAlign="center" fontSize="sm" color="gray.600">
                 {hour.toString().padStart(2, '0')}:00
               </Box>
@@ -359,7 +359,7 @@ const CalendarView = ({ events, view, selectedDate, onDateChange, onEventClick, 
                   .filter(event => new Date(event.start).getHours() === hour)
                   .map(event => (
                     <Box
-                      key={event.id}
+                      key={`event-hour-${event.id}-${hour}`}
                       p={1}
                       mb={1}
                       bg={event.color}
@@ -1371,7 +1371,7 @@ export default function Appointments() {
             <CardBody pt={0}>
               <Wrap spacing={2}>
                 {activeFilters.map((filter, index) => (
-                  <WrapItem key={index}>
+                  <WrapItem key={`active-filter-${filter.key}-${index}`}>
                     <Tag colorScheme="blue" size="md">
                       <TagLabel>{filter.label}</TagLabel>
                       <TagCloseButton onClick={() => clearFilter(filter.key)} />
@@ -1502,7 +1502,7 @@ export default function Appointments() {
                       </MenuButton>
                       <MenuList>
                         {savedFilters.map((filter) => (
-                          <MenuItem key={filter.id} onClick={() => loadSavedFilter(filter)}>
+                          <MenuItem key={`saved-filter-${filter.id}`} onClick={() => loadSavedFilter(filter)}>
                             {filter.name}
                           </MenuItem>
                         ))}
@@ -1937,7 +1937,7 @@ export default function Appointments() {
                 </Heading>
                 <VStack spacing={3} align="stretch">
                   {alerts.map((alert, index) => (
-                    <ScaleFade key={alert.id} in={true} initialScale={0.9}>
+                    <ScaleFade key={`alert-${alert.id}-${index}`} in={true} initialScale={0.9}>
                       <Alert 
                         status={alert.type} 
                         borderRadius="md"

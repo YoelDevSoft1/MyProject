@@ -296,7 +296,7 @@ export const AppointmentTable = memo(({
   // Skeleton loader para filas
   const renderSkeletonRows = useCallback(() => (
     Array.from({ length: 5 }).map((_, index) => (
-      <Tr key={`skeleton-${index}`}>
+      <Tr key={`appointment-skeleton-${index}`}>
         {columns.map((column) => (
           <Td 
             key={column.key}

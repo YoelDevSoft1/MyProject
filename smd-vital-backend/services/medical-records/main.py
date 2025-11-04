@@ -8,15 +8,18 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import json
+from enum import Enum
 
 from medical_record_service import MedicalRecordService, RecordType, MedicalRecord
 from prescription_service import PrescriptionService, Prescription, Medication
 from rating_service import RatingService, DoctorRating, RatingAggregate
 from database_sqlalchemy import DatabaseManager
+from fastapi.responses import PlainTextResponse
+from medical_records_repository import repository as medical_records_repository
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +30,12 @@ db_manager = None
 medical_service = None
 prescription_service = None
 rating_service = None
+
+
+def _now_iso() -> str:
+    """Return current UTC time as ISO string"""
+    return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -66,16 +75,14 @@ app = FastAPI(
 )
 
 # ===== CONFIGURACIÓN CORS =====
-# CORS deshabilitado en el servicio - Nginx se encarga de CORS
-# Esto evita headers duplicados que causan errores CORS
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=True,
-#     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
-#     allow_headers=["*"],
-# )
+# CORS habilitado para desarrollo local
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=["*"],
+)
 
 # =============================================
 # MODELOS PYDANTIC
@@ -151,6 +158,79 @@ class RatingAggregateResponse(BaseModel):
     category_averages: Dict[str, float]
     confidence_score: float
     last_updated: datetime
+
+# =============================================
+# ADMIN MEDICAL RECORDS MODELS
+# =============================================
+
+class MedicalRecordStatus(str, Enum):
+    active = "active"
+    pending = "pending"
+    archived = "archived"
+
+
+class MedicalRecordAdminBase(BaseModel):
+    record_number: Optional[str] = None
+    patient_id: Optional[str] = None
+    patient_name: str
+    doctor_id: Optional[str] = None
+    doctor_name: str
+    diagnosis: Optional[str] = None
+    symptoms: Optional[str] = None
+    treatment: Optional[str] = None
+    medications: Optional[str] = None
+    allergies: Optional[str] = None
+    notes: Optional[str] = None
+    status: MedicalRecordStatus = MedicalRecordStatus.active
+    appointment_date: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    follow_up_notes: Optional[str] = None
+
+
+class MedicalRecordAdminCreate(MedicalRecordAdminBase):
+    pass
+
+
+class MedicalRecordAdminUpdate(BaseModel):
+    patient_id: Optional[str] = None
+    patient_name: Optional[str] = None
+    doctor_id: Optional[str] = None
+    doctor_name: Optional[str] = None
+    diagnosis: Optional[str] = None
+    symptoms: Optional[str] = None
+    treatment: Optional[str] = None
+    medications: Optional[str] = None
+    allergies: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[MedicalRecordStatus] = None
+    appointment_date: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    follow_up_notes: Optional[str] = None
+
+
+class MedicalRecordAdminItem(MedicalRecordAdminBase):
+    id: str
+    record_number: str
+    created_at: str
+    updated_at: str
+
+
+class MedicalRecordAdminStats(BaseModel):
+    totalRecords: int
+    activeRecords: int
+    archivedRecords: int
+    pendingRecords: int
+    followUpScheduled: int
+    lastUpdated: Optional[str]
+
+
+class MedicalRecordListResponse(BaseModel):
+    records: List[MedicalRecordAdminItem]
+    page: int
+    limit: int
+    total: int
+    totalPages: int
+    stats: MedicalRecordAdminStats
 
 # =============================================
 # DEPENDENCIAS
@@ -365,6 +445,80 @@ async def create_prescription(
         logger.error(f"Error creating prescription: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/prescriptions", response_model=List[PrescriptionResponse], tags=["Prescriptions"])
+async def get_prescriptions(
+    status: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtener todas las prescripciones"""
+    try:
+        # Datos de ejemplo - en producción se consultaría la base de datos
+        prescriptions_data = [
+            {
+                "id": "presc_1",
+                "medical_record_id": "mr_1",
+                "patient_id": "patient_123",
+                "doctor_id": "doctor_456",
+                "prescription_data": {
+                    "medications": [
+                        {
+                            "name": "Ibuprofeno",
+                            "dosage": "400mg",
+                            "frequency": "Cada 8 horas",
+                            "duration": "7 días"
+                        }
+                    ],
+                    "doctor_notes": "Tomar con alimentos"
+                },
+                "pdf_url": None,
+                "status": "active",
+                "expires_at": "2024-02-15T00:00:00Z",
+                "created_at": "2024-01-15T10:00:00Z"
+            },
+            {
+                "id": "presc_2",
+                "medical_record_id": "mr_2",
+                "patient_id": "patient_456",
+                "doctor_id": "doctor_789",
+                "prescription_data": {
+                    "medications": [
+                        {
+                            "name": "Amoxicilina",
+                            "dosage": "500mg",
+                            "frequency": "Cada 12 horas",
+                            "duration": "10 días"
+                        }
+                    ],
+                    "doctor_notes": "Completar el tratamiento"
+                },
+                "pdf_url": None,
+                "status": "active",
+                "expires_at": "2024-02-20T00:00:00Z",
+                "created_at": "2024-01-16T14:30:00Z"
+            }
+        ]
+        
+        return [
+            PrescriptionResponse(
+                id=presc["id"],
+                medical_record_id=presc["medical_record_id"],
+                patient_id=presc["patient_id"],
+                doctor_id=presc["doctor_id"],
+                prescription_data=presc["prescription_data"],
+                pdf_url=presc["pdf_url"],
+                status=presc["status"],
+                expires_at=presc["expires_at"],
+                created_at=presc["created_at"]
+            )
+            for presc in prescriptions_data[:limit]
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error getting prescriptions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/prescriptions/patient/{patient_id}", response_model=List[PrescriptionResponse], tags=["Prescriptions"])
 async def get_patient_prescriptions(
     patient_id: str,
@@ -556,6 +710,72 @@ async def get_rating_statistics(current_user: dict = Depends(get_current_user)):
 # ENDPOINTS DE SIGNOS VITALES
 # =============================================
 
+@app.get("/vital-signs", response_model=List[Dict[str, Any]], tags=["Vital Signs"])
+async def get_vital_signs(
+    limit: int = Query(10, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtener todos los registros de signos vitales"""
+    try:
+        # Datos de ejemplo
+        vital_signs_data = [
+            {
+                "id": "vs_1",
+                "patient_id": "patient_123",
+                "measured_at": "2024-01-15T10:00:00Z",
+                "systolic_bp": 120,
+                "diastolic_bp": 80,
+                "heart_rate": 72,
+                "respiratory_rate": 16,
+                "temperature_celsius": 36.5,
+                "oxygen_saturation": 98,
+                "height_cm": 175.0,
+                "weight_kg": 70.5,
+                "bmi": 23.0,
+                "glucose_level": 95,
+                "pain_scale": 2,
+                "position": "Sentado",
+                "activity_level": "Reposo",
+                "notes": "Paciente en reposo, sin síntomas",
+                "measurement_method": "Manual",
+                "device_used": "Esfigmomanómetro digital",
+                "recorded_by": "doctor-123",
+                "is_critical": False,
+                "critical_values": []
+            },
+            {
+                "id": "vs_2",
+                "patient_id": "patient_456",
+                "measured_at": "2024-01-14T14:30:00Z",
+                "systolic_bp": 118,
+                "diastolic_bp": 78,
+                "heart_rate": 68,
+                "respiratory_rate": 14,
+                "temperature_celsius": 36.2,
+                "oxygen_saturation": 99,
+                "height_cm": 175.0,
+                "weight_kg": 70.2,
+                "bmi": 22.9,
+                "glucose_level": 92,
+                "pain_scale": 1,
+                "position": "De pie",
+                "activity_level": "Activo",
+                "notes": "Paciente activo, buen estado general",
+                "measurement_method": "Automático",
+                "device_used": "Monitor multiparámetro",
+                "recorded_by": "nurse-456",
+                "is_critical": False,
+                "critical_values": []
+            }
+        ]
+        
+        return vital_signs_data[:limit]
+        
+    except Exception as e:
+        logger.error(f"Error getting vital signs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/vital-signs", response_model=Dict[str, Any], tags=["Vital Signs"])
 async def record_vital_signs(
     patient_id: str,
@@ -630,6 +850,134 @@ async def record_vital_signs(
     except Exception as e:
         logger.error(f"Error recording vital signs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# =============================================
+# ADMIN HELPER FUNCTIONS
+# =============================================
+
+def map_admin_record(item: Dict[str, Any]) -> MedicalRecordAdminItem:
+    """Map database record to admin response model"""
+    return MedicalRecordAdminItem(
+        id=item.get("id", ""),
+        record_number=item.get("record_number", ""),
+        patient_id=item.get("patient_id"),
+        patient_name=item.get("patient_name", ""),
+        doctor_id=item.get("doctor_id"),
+        doctor_name=item.get("doctor_name", ""),
+        diagnosis=item.get("diagnosis"),
+        symptoms=item.get("symptoms"),
+        treatment=item.get("treatment"),
+        medications=item.get("medications"),
+        allergies=item.get("allergies"),
+        notes=item.get("notes"),
+        status=item.get("status", MedicalRecordStatus.active),
+        appointment_date=item.get("appointment_date"),
+        follow_up_date=item.get("follow_up_date"),
+        follow_up_notes=item.get("follow_up_notes"),
+        created_at=item.get("created_at", _now_iso()),
+        updated_at=item.get("updated_at", _now_iso())
+    )
+
+
+def map_admin_stats(stats: Dict[str, Any]) -> MedicalRecordAdminStats:
+    """Map database stats to admin stats model"""
+    return MedicalRecordAdminStats(
+        totalRecords=stats.get("total_records", 0),
+        activeRecords=stats.get("active_records", 0),
+        archivedRecords=stats.get("archived_records", 0),
+        pendingRecords=stats.get("pending_records", 0),
+        followUpScheduled=stats.get("follow_up_scheduled", 0),
+        lastUpdated=stats.get("last_updated")
+    )
+
+
+# =============================================
+# ADMIN MEDICAL RECORDS ENDPOINTS
+# =============================================
+
+@app.get("/medical-records/admin", response_model=MedicalRecordListResponse, tags=["Medical Records Admin"])
+async def admin_list_medical_records(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(10, ge=1, le=100, description="Page size"),
+    status: Optional[MedicalRecordStatus] = Query(None, description="Filter by status"),
+    doctor: Optional[str] = Query(None, description="Filter by doctor"),
+    search: Optional[str] = Query(None, description="Search term"),
+    current_user: dict = Depends(get_current_user)
+):
+    result = await medical_records_repository.list_records(
+        page=page,
+        limit=limit,
+        status=status.value if status else None,
+        doctor=doctor,
+        search=search
+    )
+    records = [map_admin_record(item) for item in result["items"]]
+    stats = map_admin_stats(result.get("stats", {}))
+    return MedicalRecordListResponse(
+        records=records,
+        page=result.get("page", page),
+        limit=result.get("limit", limit),
+        total=result.get("total", len(records)),
+        totalPages=result.get("total_pages", 1),
+        stats=stats
+    )
+
+
+@app.post(
+    "/medical-records/admin",
+    response_model=MedicalRecordAdminItem,
+    status_code=201,
+    tags=["Medical Records Admin"]
+)
+async def admin_create_medical_record(
+    payload: MedicalRecordAdminCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    record = await medical_records_repository.create_record({
+        **payload.dict(),
+        "created_by": current_user.get("id")
+    })
+    return map_admin_record(record)
+
+
+@app.put("/medical-records/admin/{record_id}", response_model=MedicalRecordAdminItem, tags=["Medical Records Admin"])
+async def admin_update_medical_record(
+    record_id: str,
+    payload: MedicalRecordAdminUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    update_payload = {k: v for k, v in payload.dict(exclude_unset=True).items() if v is not None}
+    record = await medical_records_repository.update_record(record_id, update_payload)
+    if not record:
+        raise HTTPException(status_code=404, detail="Medical record not found")
+    return map_admin_record(record)
+
+
+@app.delete("/medical-records/admin/{record_id}", status_code=204, tags=["Medical Records Admin"])
+async def admin_delete_medical_record(
+    record_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    deleted = await medical_records_repository.delete_record(record_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Medical record not found")
+    return Response(status_code=204)
+
+
+@app.get("/medical-records/admin/export", response_class=PlainTextResponse, tags=["Medical Records Admin"])
+async def admin_export_medical_records(
+    status: Optional[MedicalRecordStatus] = Query(None, description="Filter by status"),
+    doctor: Optional[str] = Query(None, description="Filter by doctor"),
+    search: Optional[str] = Query(None, description="Search term"),
+    current_user: dict = Depends(get_current_user)
+):
+    csv_content = await medical_records_repository.export_records(
+        status=status.value if status else None,
+        doctor=doctor,
+        search=search
+    )
+    headers = {"Content-Disposition": "attachment; filename=medical_records.csv"}
+    return PlainTextResponse(content=csv_content, media_type="text/csv", headers=headers)
 
 @app.get("/vital-signs/patient/{patient_id}", response_model=List[Dict[str, Any]], tags=["Vital Signs"])
 async def get_patient_vital_signs(
@@ -744,6 +1092,61 @@ async def get_vital_signs_details(
         raise HTTPException(status_code=500, detail=str(e))
 
 # =============================================
+# ALLERGIES ENDPOINT
+# =============================================
+
+@app.get("/allergies", response_model=List[Dict[str, Any]], tags=["Allergies"])
+async def get_allergies(
+    patient_id: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=100)
+):
+    """Obtener lista de alergias"""
+    try:
+        # Datos de ejemplo - en producción se consultaría la base de datos
+        allergies_data = [
+            {
+                "id": "allergy_1",
+                "patient_id": patient_id or "patient-123",
+                "allergen": "Penicilina",
+                "severity": "Moderada",
+                "reaction": "Erupción cutánea",
+                "diagnosed_date": "2024-01-15T10:00:00Z",
+                "status": "Activa",
+                "notes": "Evitar todos los antibióticos de la familia de la penicilina"
+            },
+            {
+                "id": "allergy_2",
+                "patient_id": patient_id or "patient-123",
+                "allergen": "Polen",
+                "severity": "Leve",
+                "reaction": "Estornudos, congestión nasal",
+                "diagnosed_date": "2024-02-01T10:00:00Z",
+                "status": "Activa",
+                "notes": "Empeora en primavera"
+            },
+            {
+                "id": "allergy_3",
+                "patient_id": patient_id or "patient-123",
+                "allergen": "Mariscos",
+                "severity": "Severa",
+                "reaction": "Anafilaxia",
+                "diagnosed_date": "2023-12-10T10:00:00Z",
+                "status": "Activa",
+                "notes": "Requiere epinefrina de emergencia"
+            }
+        ]
+        
+        # Filtrar por patient_id si se proporciona
+        if patient_id:
+            allergies_data = [a for a in allergies_data if a["patient_id"] == patient_id]
+        
+        # Limitar resultados
+        return allergies_data[:limit]
+        
+    except Exception as e:
+        logger.error(f"Error getting allergies: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # HEALTH CHECK
 # =============================================
 
@@ -831,3 +1234,7 @@ async def metrics():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8007)
+
+
+
+

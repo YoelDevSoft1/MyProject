@@ -304,8 +304,21 @@ export default function Payments() {
       const link = document.createElement('a');
       link.href = url;
       link.download = `pagos_smd_vital_${new Date().toISOString().split('T')[0]}.csv`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
       link.click();
-      window.URL.revokeObjectURL(url);
+      
+      // Clean up
+      setTimeout(() => {
+        try {
+          if (link && link.parentNode && document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+        } catch (error) {
+          console.warn('Could not remove download link:', error);
+        }
+        window.URL.revokeObjectURL(url);
+      }, 100);
       
       toast({
         title: "Exportación Exitosa",

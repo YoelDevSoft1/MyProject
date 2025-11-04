@@ -1,0 +1,38 @@
+# Imagen base de Node.js
+FROM node:20-alpine
+
+# Instalar nginx para servir la aplicación
+RUN apk add --no-cache nginx
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Instalar Angular CLI globalmente
+RUN npm install -g @angular/cli@20
+
+# Copiar archivos de dependencias
+COPY package*.json ./
+
+# Instalar dependencias
+RUN npm install --legacy-peer-deps
+
+# Copiar código fuente
+COPY . .
+
+# Construir la aplicación para producción
+RUN ng build --configuration=development
+
+# Copiar configuración de nginx para desarrollo
+COPY nginx-dev.conf /etc/nginx/nginx.conf
+
+# Crear directorios para nginx
+RUN mkdir -p /var/log/nginx /var/lib/nginx/tmp /run/nginx /usr/share/nginx/html
+
+# Copiar archivos construidos a nginx
+RUN cp -r dist/smd-vital-angular/* /usr/share/nginx/html/
+
+# Exponer puerto
+EXPOSE 80
+
+# Comando de inicio para desarrollo con nginx
+CMD ["nginx", "-g", "daemon off;"]

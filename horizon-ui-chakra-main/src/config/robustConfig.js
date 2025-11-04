@@ -7,7 +7,7 @@
 export const robustConfig = {
   // URLs de backend para detección
   backendUrls: {
-    primary: 'http://localhost:8001',
+    primary: 'http://localhost:8000',
     secondary: 'http://localhost:3000',
     proxy: '/api'
   },

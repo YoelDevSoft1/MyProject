@@ -218,15 +218,15 @@ async def register_user(user_data: UserCreate):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
 
 @app.post("/login", response_model=Token, tags=["Authentication"])
-async def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_user(login_data: UserLogin):
     """Iniciar sesión de usuario"""
     try:
-        logger.info(f"Login attempt for email: {form_data.username}")
+        logger.info(f"Login attempt for email: {login_data.email}")
         
         # Autenticar usuario
-        user = await db_auth.authenticate_user(form_data.username, form_data.password)
+        user = await db_auth.authenticate_user(login_data.email, login_data.password)
         if not user:
-            logger.warning(f"Failed login attempt for email: {form_data.username}")
+            logger.warning(f"Failed login attempt for email: {login_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Credenciales inválidas",
@@ -252,10 +252,165 @@ async def login_user(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
 
 @app.get("/me", response_model=UserResponse, tags=["Authentication"])
+@app.get("/api/me", response_model=UserResponse, tags=["Authentication"], include_in_schema=False)
 async def get_current_user_profile(current_user: dict = Depends(get_current_user)):
     """Obtener información del usuario actual"""
     return db_auth.user_to_response(current_user)
 
+@app.get("/me/detection", tags=["Authentication"])
+@app.get("/api/me/detection", tags=["Authentication"], include_in_schema=False)
+async def get_user_detection_info(current_user: dict = Depends(get_current_user)):
+    """Provide a lightweight detection profile for the current user"""
+    try:
+        role = (current_user.get("role") or "patient").lower()
+        detection_profiles = {
+            "doctor": {
+                "detected_type": "doctor",
+                "confidence": 0.92,
+                "reasons": [
+                    "Account role is doctor",
+                    "Recent activity includes patient chart access"
+                ],
+                "category": "clinical",
+                "suggested_interface": "doctor",
+                "permissions": [
+                    "view_patients",
+                    "manage_appointments",
+                    "view_reports"
+                ],
+                "dashboard_title": "Clinical Dashboard",
+                "dashboard_widgets": [
+                    "appointments_today",
+                    "patient_alerts",
+                    "tasks"
+                ],
+                "primary_color": "#2D5A87",
+                "icon": "stethoscope"
+            },
+            "nurse": {
+                "detected_type": "nurse",
+                "confidence": 0.9,
+                "reasons": [
+                    "Account role is nurse",
+                    "Assigned to active care teams"
+                ],
+                "category": "clinical",
+                "suggested_interface": "nurse",
+                "permissions": [
+                    "view_patients",
+                    "update_vitals",
+                    "manage_tasks"
+                ],
+                "dashboard_title": "Nursing Station",
+                "dashboard_widgets": [
+                    "patient_status",
+                    "medication_schedule",
+                    "team_messages"
+                ],
+                "primary_color": "#4A90E2",
+                "icon": "heart"
+            },
+            "admin": {
+                "detected_type": "admin",
+                "confidence": 0.95,
+                "reasons": [
+                    "Account role is admin",
+                    "Has system management permissions"
+                ],
+                "category": "administration",
+                "suggested_interface": "admin",
+                "permissions": [
+                    "manage_users",
+                    "view_reports",
+                    "configure_system"
+                ],
+                "dashboard_title": "Administration Console",
+                "dashboard_widgets": [
+                    "system_health",
+                    "user_activity",
+                    "billing_overview"
+                ],
+                "primary_color": "#E67E22",
+                "icon": "settings"
+            },
+            "receptionist": {
+                "detected_type": "receptionist",
+                "confidence": 0.88,
+                "reasons": [
+                    "Account role is receptionist",
+                    "Primary tasks include appointment management"
+                ],
+                "category": "operations",
+                "suggested_interface": "receptionist",
+                "permissions": [
+                    "manage_appointments",
+                    "check_in_patients",
+                    "update_contacts"
+                ],
+                "dashboard_title": "Front Desk",
+                "dashboard_widgets": [
+                    "today_schedule",
+                    "waiting_room",
+                    "quick_actions"
+                ],
+                "primary_color": "#F39C12",
+                "icon": "calendar"
+            },
+            "patient": {
+                "detected_type": "patient",
+                "confidence": 0.85,
+                "reasons": [
+                    "Account role is patient"
+                ],
+                "category": "patients",
+                "suggested_interface": "patient",
+                "permissions": [
+                    "view_records",
+                    "schedule_appointments",
+                    "manage_profile"
+                ],
+                "dashboard_title": "My Health",
+                "dashboard_widgets": [
+                    "next_appointment",
+                    "care_plan",
+                    "notifications"
+                ],
+                "primary_color": "#27AE60",
+                "icon": "user"
+            }
+        }
+
+        profile = detection_profiles.get(role, detection_profiles["patient"])
+        response = {
+            "user_id": current_user.get("id"),
+            "email": current_user.get("email"),
+            "detection": {
+                "detected_type": profile["detected_type"],
+                "confidence": profile["confidence"],
+                "reasons": profile["reasons"],
+                "category": profile["category"],
+                "suggested_interface": profile["suggested_interface"],
+                "permissions": profile["permissions"]
+            },
+            "dashboard_config": {
+                "title": profile["dashboard_title"],
+                "widgets": profile["dashboard_widgets"],
+                "primary_color": profile["primary_color"],
+                "icon": profile["icon"]
+            },
+            "original_role": role,
+            "specialty": current_user.get("specialty", ""),
+            "detection_timestamp": datetime.utcnow().isoformat()
+        }
+
+        logger.info("Detection profile calculated for %s: %s", current_user.get("email"), profile["detected_type"])
+        return response
+    except Exception as exc:
+        logger.error(f"Error generating detection data: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al detectar tipo de usuario"
+        )
 @app.post("/logout", tags=["Authentication"])
 async def logout_user():
     """Cerrar sesión de usuario"""
